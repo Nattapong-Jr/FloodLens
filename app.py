@@ -5,6 +5,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from floodlens.data import load_csv
+from floodlens.live import LiveService
 
 ROOT = Path(__file__).resolve().parent
 
@@ -15,10 +16,14 @@ def main():
     parser.add_argument('--port', type=int, default=8000)
     args = parser.parse_args()
     rows, issues = load_csv(args.data)
+    live = LiveService()
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
-            if self.path == '/api/data':
+            if self.path == '/api/live':
+                body = json.dumps(live.get(), ensure_ascii=False, allow_nan=False).encode()
+                mime = 'application/json; charset=utf-8'
+            elif self.path == '/api/data':
                 body = json.dumps({'rows': rows, 'issues': issues}, ensure_ascii=False).encode()
                 mime = 'application/json; charset=utf-8'
             elif self.path in ('/', '/index.html'):
