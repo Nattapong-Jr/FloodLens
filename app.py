@@ -14,9 +14,15 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data', type=Path, default=ROOT / 'data/demo.csv')
     parser.add_argument('--port', type=int, default=8000)
+    parser.add_argument('--check-live', action='store_true',
+                        help='Fetch real feeds, print JSON, exit 1 unless all feeds have data')
     args = parser.parse_args()
-    rows, issues = load_csv(args.data)
     live = LiveService()
+    if args.check_live:
+        result = live.get()
+        print(json.dumps(result, ensure_ascii=True, allow_nan=False, indent=2))
+        return 0 if all(feed['status'] == 'ok' for feed in result['feeds'].values()) else 1
+    rows, issues = load_csv(args.data)
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
@@ -44,4 +50,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())
