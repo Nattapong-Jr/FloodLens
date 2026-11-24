@@ -54,7 +54,36 @@ class LiveTests(unittest.TestCase):
             for feed in result['feeds'].values():
                 self.assertEqual(feed['status'], 'error')
                 self.assertEqual(feed['rows'], [])
-        self.assertEqual(len(calls), 3)
+        self.assertEqual(len(calls), 4)
+
+    def test_flow_retains_signed_measurements_and_identity(self):
+        record = {'flow_datetime': datetime.now(BANGKOK).isoformat(), 'flow_value': -3.09,
+                  'station': {'id': 43, 'flow_name': {'th': 'Canal'},
+                              'flow_lat': 13.74, 'flow_long': 100.79, 'flow_oldcode': 'FW.X.01'}}
+        row = normalize_stations({'result': 'OK', 'data': [record]}, 'flow')['rows'][0]
+        self.assertEqual(row['value'], -3.09)
+        self.assertEqual(row['unit'], 'm3/s')
+        self.assertEqual(row['station_code'], 'FW.X.01')
+
+    def test_regional_scope_does_not_pollute_local_cache(self):
+        record = self.station(lat=14.2)
+        def fetch(url):
+            if 'waterlevel_load' in url:
+                return {'waterlevel_data': {'result': 'OK', 'data': [record]}}
+            return {'data': []}
+        service = LiveService(fetch)
+        self.assertEqual(len(service.get('regional')['feeds']['water']['rows']), 1)
+        self.assertEqual(service.get()['feeds']['water']['rows'], [])
+        self.assertEqual(len(service.get('regional')['feeds']['water']['rows']), 1)
+
+    def test_wind_from_north_blows_south(self):
+        payload = {'hourly': {'time': [time.time()+7200], 'precipitation': [0],
+                             'precipitation_probability': [10], 'wind_direction_10m': [0]},
+                   'hourly_units': {'precipitation': 'mm', 'precipitation_probability': '%',
+                                    'wind_direction_10m': '°'}}
+        row = normalize_forecast(payload)['rows'][0]
+        self.assertEqual(row['wind_from_deg'], 0)
+        self.assertEqual(row['wind_to_deg'], 180)
 
 
 if __name__ == '__main__':
