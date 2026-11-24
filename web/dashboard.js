@@ -24,7 +24,7 @@ function tableRow(target, values) {
 const svgNS='http://www.w3.org/2000/svg';
 function svgNode(tag,attrs={},parent){const n=document.createElementNS(svgNS,tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,String(v));if(parent)parent.append(n);return n;}
 function svgText(svg,x,y,value,attrs={}){const n=svgNode('text',{x,y,fill:'#a0b7ca','font-size':11,...attrs},svg);n.textContent=value;return n;}
-function plotMap(target,points,wind=false) {
+function plotCoordinateMap(target,points,wind=false) {
   target.replaceChildren();
   const usable=points.filter(p=>Number.isFinite(p.latitude)&&Number.isFinite(p.longitude));
   if(!usable.length){text('p','ยังไม่มีข้อมูลพิกัดที่ใช้ได้',target);return;}
@@ -64,6 +64,59 @@ function plotMap(target,points,wind=false) {
   }
   if(!wind){const cx=x(100.78),cy=y(13.73);svgNode('path',{d:`M ${cx} ${cy-9} L ${cx+9} ${cy} L ${cx} ${cy+9} L ${cx-9} ${cy} Z`,fill:'none',stroke:'#f5c56b','stroke-width':2},svg);svgText(svg,cx+12,cy-10,'KMITL',{fill:'#f5c56b'});}
 }
+// Keep the station map alive across polling so the user's zoom is preserved.
+let stationMap=null, stationLayer=null, stationTiles=null, mapFilter=null;
+const stationMarkers=new Map();
+function clearStationMap(){
+  if(stationLayer)stationLayer.clearLayers();
+  stationMarkers.clear();
+  if(stationMap)stationMap.closePopup();
+}
+function plotMap(target,points,wind=false){
+  if(wind){plotCoordinateMap(target,points,true);return;}
+  const note=el('mapStatus');
+  if(typeof L==='undefined'){
+    target.replaceChildren();
+    text('p','โหลดแผนที่ไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ตแล้วโหลดหน้าใหม่ ยังเลือกสถานีจากตารางด้านล่างได้',target);
+    return;
+  }
+  if(!stationMap){
+    target.replaceChildren();
+    stationMap=L.map(target,{scrollWheelZoom:false}).setView([13.73,100.78],12);
+    stationTiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(stationMap);
+    stationTiles.on('tileerror',()=>{note.textContent='โหลดภาพแผนที่บางส่วนไม่ได้ ตรวจอินเทอร์เน็ต หรือเลือกสถานีจากตารางด้านล่าง';});
+    stationLayer=L.layerGroup().addTo(stationMap);
+    L.circleMarker([13.73,100.78],{radius:10,color:'#7b4b00',fillColor:'#ffd166',fillOpacity:1,weight:3})
+      .addTo(stationMap).bindTooltip('KMITL — จุดอ้างอิง',{permanent:true,direction:'top'});
+  }
+  clearStationMap();
+  const usable=points.filter(p=>Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)&&Math.abs(p.latitude)<=90&&Math.abs(p.longitude)<=180);
+  const key=feed;
+  for(const p of usable){
+    const content=document.createElement('div');
+    text('strong',p.name||p.station_id,content);
+    text('p',names[key]+': '+num(p.value)+' '+units[key],content);
+    text('p',(p.stale?'ข้อมูลเก่า — ':'วัดเมื่อ ')+fmt(p.timestamp),content);
+    const button=text('button','ดูประวัติสถานี',content,'map-history');
+    button.onclick=()=>{feed=key;choose(p);};
+    const marker=L.circleMarker([p.latitude,p.longitude],{radius:8,color:'#ffffff',weight:2,
+      fillColor:p.stale?'#748594':'#087f8c',fillOpacity:.95}).addTo(stationLayer).bindPopup(content);
+    // A marker click also updates the existing history panel.
+    marker.on('click',()=>choose(p));
+    stationMarkers.set(p.station_id,marker);
+  }
+  note.textContent=usable.length?'ลากเพื่อเลื่อน · กด + / − เพื่อซูม · กดจุดเพื่อดูค่าและประวัติ':'ไม่พบสถานีตามตัวกรอง ลองเปลี่ยนพื้นที่หรือคำค้น';
+  const filter=JSON.stringify([el('scope').value,el('search').value,el('fresh').checked]);
+  if(mapFilter!==filter){
+    stationMap.fitBounds([[13.73,100.78],...usable.map(p=>[p.latitude,p.longitude])],{padding:[30,30],maxZoom:13});
+    mapFilter=filter;
+  }
+  stationMap.invalidateSize();
+}
+el('mapHome').onclick=()=>{if(stationMap)stationMap.setView([13.73,100.78],13);};
+el('mapFit').onclick=()=>{mapFilter=null;if(snapshot)renderStations();};
 function seriesChart(target,rows,key,bars=false){
   target.replaceChildren();const valid=rows.filter(r=>Number.isFinite(r[key]));
   if(!valid.length){text('p','ยังไม่มีข้อมูลสำหรับกราฟ',target);return;}
@@ -103,7 +156,9 @@ function renderStations(){
     const button=text('button',r.name||r.station_id,tr.firstChild,'station-button');button.onclick=()=>choose(r);text('small',r.river||r.station_code||'',tr.firstChild);});
   plotMap(el('geo'),rows);
 }
-async function choose(station){selected={...station,feed};el('detailTitle').textContent=station.name||station.station_id;
+async function choose(station){
+  if(stationMap){const marker=stationMarkers.get(station.station_id);if(marker){stationMap.panTo([station.latitude,station.longitude]);marker.openPopup();}}
+  selected={...station,feed};el('detailTitle').textContent=station.name||station.station_id;
   el('detailMeta').textContent=[station.station_code,station.agency,station.river,station.basin].filter(Boolean).join(' · ')+` · ล่าสุด ${num(station.value)} ${units[feed]} (${fmt(station.timestamp)})`;
   el('stationMap').classList.remove('hidden');el('stationMap').href=`https://www.openstreetmap.org/?mlat=${station.latitude}&mlon=${station.longitude}#map=15/${station.latitude}/${station.longitude}`;
   await loadHistory();}
@@ -126,7 +181,7 @@ async function refresh(){
   if(busy)return;busy=true;el('refresh').disabled=true;el('updated').textContent='กำลังอ่านข้อมูลที่เก็บล่าสุด…';
   try{const res=await fetch('/api/live?scope=regional');if(!res.ok)throw Error('HTTP '+res.status);snapshot=await res.json();render();el('updated').textContent='อ่านเมื่อ '+fmt(new Date());
     if(selected)await loadHistory();
-  }catch(e){snapshot=null;for(const id of ['waterCount','flowCount','forecastTotal','archiveCount'])el(id).textContent='—';el('updated').textContent='โหลดไม่ได้: '+e.message;el('stations').replaceChildren();el('geo').replaceChildren();el('weatherRows').replaceChildren();el('windMap').replaceChildren();el('forecastChart').replaceChildren();el('feedStatus').textContent='ข้อมูลไม่พร้อมใช้งาน';el('collector').textContent='ติดต่อเซิร์ฟเวอร์ไม่ได้';}
+  }catch(e){snapshot=null;for(const id of ['waterCount','flowCount','forecastTotal','archiveCount'])el(id).textContent='—';el('updated').textContent='โหลดไม่ได้: '+e.message;el('stations').replaceChildren();clearStationMap();el('weatherRows').replaceChildren();el('windMap').replaceChildren();el('forecastChart').replaceChildren();el('feedStatus').textContent='ข้อมูลไม่พร้อมใช้งาน';el('collector').textContent='ติดต่อเซิร์ฟเวอร์ไม่ได้';}
   finally{busy=false;el('refresh').disabled=false;}}
 el('feedTabs').querySelectorAll('button').forEach(button=>button.onclick=()=>{feed=button.dataset.feed;el('feedTabs').querySelectorAll('button').forEach(b=>b.classList.toggle('active',b===button));if(snapshot)renderStations();});
 ['scope','fresh'].forEach(id=>el(id).onchange=render);el('search').oninput=render;el('hours').onchange=loadHistory;el('weatherHour').onchange=renderWeather;el('refresh').onclick=refresh;
