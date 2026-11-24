@@ -24,46 +24,6 @@ function tableRow(target, values) {
 const svgNS='http://www.w3.org/2000/svg';
 function svgNode(tag,attrs={},parent){const n=document.createElementNS(svgNS,tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,String(v));if(parent)parent.append(n);return n;}
 function svgText(svg,x,y,value,attrs={}){const n=svgNode('text',{x,y,fill:'#a0b7ca','font-size':11,...attrs},svg);n.textContent=value;return n;}
-function plotCoordinateMap(target,points,wind=false) {
-  target.replaceChildren();
-  const usable=points.filter(p=>Number.isFinite(p.latitude)&&Number.isFinite(p.longitude));
-  if(!usable.length){text('p','ยังไม่มีข้อมูลพิกัดที่ใช้ได้',target);return;}
-  const all=[...usable,{latitude:13.73,longitude:100.78}];
-  let loX=Math.min(...all.map(p=>p.longitude))-.025,hiX=Math.max(...all.map(p=>p.longitude))+.025;
-  let loY=Math.min(...all.map(p=>p.latitude))-.025,hiY=Math.max(...all.map(p=>p.latitude))+.025;
-  const w=800,h=wind?340:390,L=58,R=30,T=30,B=40;
-  // Equal approximate kilometre scale for latitude and longitude near Bangkok.
-  const cos=Math.cos(13.73*Math.PI/180), span=Math.max((hiX-loX)*cos/(w-L-R),(hiY-loY)/(h-T-B));
-  const midX=(loX+hiX)/2,midY=(loY+hiY)/2;
-  loX=midX-span*(w-L-R)/cos/2;hiX=midX+span*(w-L-R)/cos/2;
-  loY=midY-span*(h-T-B)/2;hiY=midY+span*(h-T-B)/2;
-  const x=v=>L+(v-loX)/(hiX-loX)*(w-L-R),y=v=>T+(hiY-v)/(hiY-loY)*(h-T-B);
-  const svg=svgNode('svg',{viewBox:`0 0 ${w} ${h}`,role:'img','aria-label':wind?'ทิศลมพยากรณ์หลายพื้นที่':'ตำแหน่งสถานีตามละติจูดและลองจิจูด'},target);
-  svgNode('rect',{x:L,y:T,width:w-L-R,height:h-T-B,fill:'#0a1b29',stroke:'#294256'},svg);
-  for(let i=0;i<=4;i++){const xx=L+(w-L-R)*i/4,yy=T+(h-T-B)*i/4;
-    svgNode('line',{x1:xx,x2:xx,y1:T,y2:h-B,stroke:'#20384b'},svg);
-    svgNode('line',{x1:L,x2:w-R,y1:yy,y2:yy,stroke:'#20384b'},svg);
-    svgText(svg,xx,h-16,(loX+(hiX-loX)*i/4).toFixed(2)+'°E',{'text-anchor':'middle'});
-    svgText(svg,2,yy+4,(hiY-(hiY-loY)*i/4).toFixed(2)+'°N');}
-  svgText(svg,w-30,16,'N ↑',{'text-anchor':'end',fill:'#60e4e4'});
-  for(const p of usable){const cx=x(p.longitude),cy=y(p.latitude);
-    if(wind){
-      const r=p.weather;
-      if(r&&r.wind_to_deg!==null&&r.wind_speed_kmh!==null&&r.wind_speed_kmh>0){
-        const rad=r.wind_to_deg*Math.PI/180,dx=Math.sin(rad)*25,dy=-Math.cos(rad)*25;
-        svgNode('line',{x1:cx-dx/2,y1:cy-dy/2,x2:cx+dx,y2:cy+dy,stroke:'#60e4e4','stroke-width':3},svg);
-        const ex=cx+dx,ey=cy+dy;svgNode('polygon',{points:`${ex},${ey} ${ex-Math.sin(rad-.5)*10},${ey+Math.cos(rad-.5)*10} ${ex-Math.sin(rad+.5)*10},${ey+Math.cos(rad+.5)*10}`,fill:'#60e4e4'},svg);
-      }else svgNode('circle',{cx,cy,r:5,fill:r?.wind_speed_kmh===0?'#60e4e4':'#8095a7'},svg);
-      svgText(svg,cx,cy+38,p.name,{'text-anchor':'middle',fill:'#dcebf7'});
-    }else{
-      const point=svgNode('circle',{cx,cy,r:6,fill:p.stale?'#6f8293':'#60e4e4',stroke:'#071420','stroke-width':2,
-        tabindex:0,role:'button','aria-label':`${p.name}: ${p.value} ${units[feed]}`},svg);
-      svgNode('title',{},point).textContent=`${p.name} · ${p.value} ${units[feed]} · ${fmt(p.timestamp)}`;
-      point.addEventListener('click',()=>choose(p));point.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();choose(p);}});
-    }
-  }
-  if(!wind){const cx=x(100.78),cy=y(13.73);svgNode('path',{d:`M ${cx} ${cy-9} L ${cx+9} ${cy} L ${cx} ${cy+9} L ${cx-9} ${cy} Z`,fill:'none',stroke:'#f5c56b','stroke-width':2},svg);svgText(svg,cx+12,cy-10,'KMITL',{fill:'#f5c56b'});}
-}
 // Keep the station map alive across polling so the user's zoom is preserved.
 let stationMap=null, stationLayer=null, stationTiles=null, mapFilter=null;
 const stationMarkers=new Map();
@@ -72,8 +32,7 @@ function clearStationMap(){
   stationMarkers.clear();
   if(stationMap)stationMap.closePopup();
 }
-function plotMap(target,points,wind=false){
-  if(wind){plotCoordinateMap(target,points,true);return;}
+function plotMap(target,points){
   const note=el('mapStatus');
   if(typeof L==='undefined'){
     target.replaceChildren();
@@ -170,18 +129,90 @@ async function loadHistory(){
     seriesChart(el('historyChart'),history,'value');el('export').disabled=!history.length;
     el('historyStats').replaceChildren();if(history.length){const values=history.map(r=>r.value);text('p',`ต่ำสุด ${num(Math.min(...values))} · สูงสุด ${num(Math.max(...values))} ${units[selected.feed]}`,el('historyStats'));}
   }catch(e){if(seq!==historyRequest)return;history=[];el('historyStatus').textContent='อ่านประวัติไม่ได้: '+e.message;el('historyChart').replaceChildren();el('historyStats').replaceChildren();}}
+const weatherNames={kmitl:'KMITL / ลาดกระบัง',pathum:'ปทุมธานี',ayutthaya:'อยุธยา',chachoengsao:'ฉะเชิงเทรา',bangkok:'กรุงเทพฯ ชั้นใน',
+  'KMITL':'KMITL / ลาดกระบัง','KMITL / Lat Krabang':'KMITL / ลาดกระบัง','Pathum Thani':'ปทุมธานี','Ayutthaya':'อยุธยา','Chachoengsao':'ฉะเชิงเทรา','Central Bangkok':'กรุงเทพฯ ชั้นใน'};
+const weatherName=p=>weatherNames[p.id]??weatherNames[p.name]??p.name??'จุดพยากรณ์';
+const weatherMetric=(v,unit,digits=1)=>Number.isFinite(v)?num(v,digits)+unit:'ไม่มีข้อมูล';
+function windDescription(r){
+  if(!Number.isFinite(r?.wind_speed_kmh))return 'ไม่มีข้อมูลความเร็วลม';
+  if(r.wind_speed_kmh===0)return 'ลมสงบ';
+  const to=Number.isFinite(r.wind_to_deg)?r.wind_to_deg:Number.isFinite(r.wind_from_deg)?r.wind_from_deg+180:null;
+  if(to===null)return 'ลม '+num(r.wind_speed_kmh,1)+' กม./ชม. (ไม่มีข้อมูลทิศ)';
+  const directions=['เหนือ','ตะวันออกเฉียงเหนือ','ตะวันออก','ตะวันออกเฉียงใต้','ใต้','ตะวันตกเฉียงใต้','ตะวันตก','ตะวันตกเฉียงเหนือ'];
+  return 'พัดไปทาง'+directions[Math.round(((to%360+360)%360)/45)%8]+' · '+num(r.wind_speed_kmh,1)+' กม./ชม.';
+}
+function rainDescription(r){
+  if(!Number.isFinite(r?.precipitation_mm))return 'ไม่มีข้อมูลฝนในชั่วโมงนี้';
+  return r.precipitation_mm===0?'ไม่คาดว่ามีฝนในชั่วโมงนี้':'คาดว่ามีฝน '+num(r.precipitation_mm,2)+' มม. ในชั่วโมงนี้';
+}
+let weatherMap=null,weatherLayer=null,weatherExtent=null;
+function clearWeather(){
+  if(weatherLayer)weatherLayer.clearLayers();
+  if(weatherMap)weatherMap.closePopup();
+  el('weatherCards').replaceChildren();
+  el('weatherSummary').textContent='ยังไม่มีข้อมูลพยากรณ์ให้แสดง';
+  el('weatherMapStatus').textContent='';
+}
+function renderWeatherMap(points){
+  const target=el('windMap'),note=el('weatherMapStatus');
+  if(typeof L==='undefined'){
+    target.replaceChildren();text('p','โหลดแผนที่ไม่ได้ อ่านฝนและลมจากการ์ดด้านล่างได้ หรือโหลดหน้าใหม่เมื่อเชื่อมต่ออินเทอร์เน็ต',target);return;
+  }
+  if(!weatherMap){
+    target.replaceChildren();weatherMap=L.map(target,{scrollWheelZoom:false}).setView([13.9,100.7],9);
+    const tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,
+      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(weatherMap);
+    tiles.on('tileerror',()=>{note.textContent='โหลดภาพแผนที่บางส่วนไม่ได้ ยังอ่านค่าจากการ์ดแต่ละพื้นที่ได้';});
+    weatherLayer=L.layerGroup().addTo(weatherMap);
+  }
+  weatherLayer.clearLayers();weatherMap.closePopup();
+  const usable=points.filter(p=>Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)&&Math.abs(p.latitude)<=90&&Math.abs(p.longitude)<=180);
+  for(const p of usable){
+    const r=p.weather,label=document.createElement('div');
+    text('strong',weatherName(p),label);
+    text('div',Number.isFinite(r?.precipitation_mm)?'ฝน '+num(r.precipitation_mm,2)+' มม.':'ไม่มีข้อมูลฝน',label);
+    const content=document.createElement('div');
+    text('strong',weatherName(p),content);text('p',rainDescription(r),content);text('p',windDescription(r),content);
+    text('p','เวลาพยากรณ์ '+fmt(el('weatherHour').value),content);
+    text('p','โอกาสฝน '+weatherMetric(r?.probability_pct,'%',0)+' · ลมกระโชก '+weatherMetric(r?.wind_gusts_kmh,' กม./ชม.'),content);
+    const color=!Number.isFinite(r?.precipitation_mm)?'#748594':r.precipitation_mm>0?'#2563eb':'#087f8c';
+    const marker=L.circleMarker([p.latitude,p.longitude],{radius:10,weight:2,color:'#fff',fillColor:color,fillOpacity:1})
+      .addTo(weatherLayer).bindTooltip(label,{permanent:true,direction:'top',offset:[0,-10],className:'weather-label'}).bindPopup(content);
+    const card=el('weatherCards').children[points.indexOf(p)];
+    if(card){card.firstChild.disabled=false;card.firstChild.onclick=()=>{weatherMap.panTo([p.latitude,p.longitude]);marker.openPopup();};}
+  }
+  const extent=JSON.stringify(usable.map(p=>[p.latitude,p.longitude]));
+  if(usable.length&&extent!==weatherExtent){weatherMap.fitBounds(usable.map(p=>[p.latitude,p.longitude]),{padding:[70,70],maxZoom:11});weatherExtent=extent;}
+  weatherMap.invalidateSize();
+}
 function renderWeather(){
-  const f=snapshot?.feeds.forecast;el('weatherStatus').textContent=status(f);const points=f?.locations??[];
-  const times=(f?.rows??[]).map(r=>r.timestamp),old=el('weatherHour').value;el('weatherHour').replaceChildren();times.forEach(t=>{const o=text('option',fmt(t),el('weatherHour'));o.value=t;});if(times.includes(old))el('weatherHour').value=old;
-  const chosen=el('weatherHour').value;el('weatherRows').replaceChildren();const mapped=[];
-  points.forEach(p=>{const r=p.rows.find(r=>r.timestamp===chosen);tableRow(el('weatherRows'),[p.name,num(r?.precipitation_mm,1),num(r?.probability_pct,0),num(r?.wind_speed_kmh,1),num(r?.wind_gusts_kmh,1),r?.wind_from_deg!=null?num(r.wind_from_deg,0)+'°':'—']);mapped.push({...p,weather:r});});
-  plotMap(el('windMap'),mapped,true);seriesChart(el('forecastChart'),f?.rows??[],'precipitation_mm',true);
+  const f=snapshot?.feeds.forecast;el('weatherStatus').textContent=status(f);clearWeather();
+  // Ignore cached rows if a feed explicitly failed; never present them as current.
+  const usable=f&&['ok','empty'].includes(f.status),points=usable?(f.locations??[]):[];
+  const times=[...new Set([...(usable?f.rows??[]:[]),...points.flatMap(p=>p.rows??[])].map(r=>r.timestamp))].sort((a,b)=>Date.parse(a)-Date.parse(b));
+  const old=el('weatherHour').value;el('weatherHour').replaceChildren();
+  times.forEach(t=>{const o=text('option',fmt(t),el('weatherHour'));o.value=t;});if(times.includes(old))el('weatherHour').value=old;
+  const chosen=el('weatherHour').value;el('weatherRows').replaceChildren();
+  const mapped=points.map(p=>({...p,weather:(p.rows??[]).find(r=>r.timestamp===chosen)}));
+  if(chosen){
+    el('weatherSummary').textContent=(f.cache_stale?'ข้อมูลพยากรณ์เก่า — ':'พยากรณ์สำหรับ ')+fmt(chosen)+' · อ่านฝนและทิศที่ลมพัดไปจากแต่ละพื้นที่ด้านล่าง';
+  }else el('weatherSummary').textContent='ยังไม่มีข้อมูลพยากรณ์ในช่วงนี้';
+  mapped.forEach(p=>{
+    const r=p.weather,card=text('article','',el('weatherCards'),'weather-card');
+    text('button',weatherName(p),card,'weather-place').disabled=true;
+    text('div',Number.isFinite(r?.precipitation_mm)?num(r.precipitation_mm,2)+' มม.':'ไม่มีข้อมูลฝน',card,'weather-rain');
+    text('p',rainDescription(r),card);text('p','โอกาสฝน '+weatherMetric(r?.probability_pct,'%',0),card);
+    text('p',windDescription(r),card,'weather-wind');
+    text('small','ลมกระโชก '+weatherMetric(r?.wind_gusts_kmh,' กม./ชม.'),card);
+    tableRow(el('weatherRows'),[weatherName(p),num(r?.precipitation_mm,2),num(r?.probability_pct,0),num(r?.wind_speed_kmh,1),num(r?.wind_gusts_kmh,1),windDescription(r)]);
+  });
+  renderWeatherMap(mapped);seriesChart(el('forecastChart'),usable?f.rows??[]:[],'precipitation_mm',true);
 }
 async function refresh(){
   if(busy)return;busy=true;el('refresh').disabled=true;el('updated').textContent='กำลังอ่านข้อมูลที่เก็บล่าสุด…';
   try{const res=await fetch('/api/live?scope=regional');if(!res.ok)throw Error('HTTP '+res.status);snapshot=await res.json();render();el('updated').textContent='อ่านเมื่อ '+fmt(new Date());
     if(selected)await loadHistory();
-  }catch(e){snapshot=null;for(const id of ['waterCount','flowCount','forecastTotal','archiveCount'])el(id).textContent='—';el('updated').textContent='โหลดไม่ได้: '+e.message;el('stations').replaceChildren();clearStationMap();el('weatherRows').replaceChildren();el('windMap').replaceChildren();el('forecastChart').replaceChildren();el('feedStatus').textContent='ข้อมูลไม่พร้อมใช้งาน';el('collector').textContent='ติดต่อเซิร์ฟเวอร์ไม่ได้';}
+  }catch(e){snapshot=null;for(const id of ['waterCount','flowCount','forecastTotal','archiveCount'])el(id).textContent='—';el('updated').textContent='โหลดไม่ได้: '+e.message;el('stations').replaceChildren();clearStationMap();el('weatherRows').replaceChildren();clearWeather();el('weatherHour').replaceChildren();el('forecastChart').replaceChildren();el('feedStatus').textContent='ข้อมูลไม่พร้อมใช้งาน';el('collector').textContent='ติดต่อเซิร์ฟเวอร์ไม่ได้';}
   finally{busy=false;el('refresh').disabled=false;}}
 el('feedTabs').querySelectorAll('button').forEach(button=>button.onclick=()=>{feed=button.dataset.feed;el('feedTabs').querySelectorAll('button').forEach(b=>b.classList.toggle('active',b===button));if(snapshot)renderStations();});
 ['scope','fresh'].forEach(id=>el(id).onchange=render);el('search').oninput=render;el('hours').onchange=loadHistory;el('weatherHour').onchange=renderWeather;el('refresh').onclick=refresh;
