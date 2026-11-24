@@ -22,7 +22,7 @@ function leafletFake(){
     map:()=>{const m={fits:0,setView(){return this;},fitBounds(){this.fits++;return this;},invalidateSize(){},closePopup(){},panTo(){}};maps.push(m);return m;},
     tileLayer:()=>{const t={addTo(){return this;},on(k,fn){this[k]=fn;return this;}};tiles.push(t);return t;},
     layerGroup:()=>{const g={items:[],addTo(){return this;},clearLayers(){this.items=[];}};layers.push(g);return g;},
-    circleMarker:(position,options)=>{const m={position,options,events:{},addTo(g){if(g.items)g.items.push(this);return this;},bindTooltip(){return this;},bindPopup(p){this.popup=p;return this;},on(k,fn){this.events[k]=fn;return this;},openPopup(){this.opened=true;return this;}};markers.push(m);return m;}
+    circleMarker:(position,options)=>{const m={position,options,events:{},addTo(g){if(g.items)g.items.push(this);return this;},bindTooltip(p){this.tooltip=p;return this;},bindPopup(p){this.popup=p;return this;},on(k,fn){this.events[k]=fn;return this;},openPopup(){this.opened=true;return this;}};markers.push(m);return m;}
   };return {L,maps,layers,markers,tiles};
 }
 function mount(snapshot, withMap=false) {
@@ -50,9 +50,9 @@ test('search empty result has no map markers',async()=>{const m=mount(fixture())
 
 test('street map markers follow filters and preserve zoom during polling',async()=>{
   const m=mount(fixture(),true);await tick();
-  assert.equal(m.leaflet.maps.length,1);assert.equal(m.leaflet.layers[0].items.length,1);
+  assert.equal(m.leaflet.maps.length,2);assert.equal(m.leaflet.layers[0].items.length,1);
   const fits=m.leaflet.maps[0].fits;await m.nodes.refresh.onclick();
-  assert.equal(m.leaflet.maps.length,1);assert.equal(m.leaflet.maps[0].fits,fits);
+  assert.equal(m.leaflet.maps.length,2);assert.equal(m.leaflet.maps[0].fits,fits);
   m.nodes.scope.value='regional';m.nodes.scope.onchange();assert.equal(m.leaflet.layers[0].items.length,2);
   m.nodes.search.value='absent';m.nodes.search.oninput();assert.equal(m.leaflet.layers[0].items.length,0);
 });
@@ -72,4 +72,62 @@ test('stale markers stay distinct and untrusted names remain text',async()=>{
   const data=fixture();data.feeds.water.rows[0].stale=true;data.feeds.water.rows[0].name='<img src=x onerror=alert(1)>';
   const m=mount(data,true);await tick();const marker=m.leaflet.layers[0].items[0];
   assert.equal(marker.options.fillColor,'#748594');assert.equal(marker.popup.firstChild.textContent,data.feeds.water.rows[0].name);
+});
+
+function contents(node){return [node.textContent,...node.children.map(contents)].join(' ');}
+test('weather cards use Thai names, hourly rain and the selected hour',async()=>{
+  const data=fixture(),first=data.feeds.forecast.rows[0];
+  const next={...first,timestamp:new Date(Date.parse(first.timestamp)+3600000).toISOString(),precipitation_mm:2.5,wind_to_deg:270};
+  data.feeds.forecast.rows.push(next);data.feeds.forecast.locations[0].rows.push(next);
+  const m=mount(data,true);await tick();
+  assert.match(contents(m.nodes.weatherCards),/ลาดกระบัง/);
+  assert.match(contents(m.nodes.weatherCards),/0\.00 มม\./);
+  assert.match(contents(m.nodes.weatherCards),/พัดไปทางใต้/);
+  const fits=m.leaflet.maps[1].fits;
+  m.nodes.weatherHour.value=next.timestamp;m.nodes.weatherHour.onchange();
+  assert.match(contents(m.nodes.weatherCards),/2\.50 มม\./);
+  assert.match(contents(m.nodes.weatherCards),/พัดไปทางตะวันตก/);
+  assert.match(contents(m.leaflet.layers[1].items[0].tooltip),/2\.50/);
+  assert.equal(m.leaflet.maps[1].fits,fits);
+  assert.equal(m.leaflet.layers[1].items[0].options.fillColor,'#2563eb');
+});
+test('weather distinguishes missing, calm and unknown direction',async()=>{
+  const data=fixture();Object.assign(data.feeds.forecast.rows[0],{precipitation_mm:null,probability_pct:null,wind_speed_kmh:0,wind_to_deg:null,wind_from_deg:null});
+  const m=mount(data,true);await tick();
+  assert.match(contents(m.nodes.weatherCards),/ไม่มีข้อมูลฝน/);
+  assert.match(contents(m.nodes.weatherCards),/ลมสงบ/);
+  assert.match(contents(m.nodes.weatherCards),/โอกาสฝน ไม่มีข้อมูล/);
+  assert.equal(m.leaflet.layers[1].items[0].options.fillColor,'#748594');
+  assert.match(vm.runInContext('windDescription({wind_speed_kmh:10})',m.ctx),/ไม่มีข้อมูลทิศ/);
+  assert.match(vm.runInContext('windDescription({wind_speed_kmh:null,wind_to_deg:0})',m.ctx),/ไม่มีข้อมูลความเร็ว/);
+  assert.match(vm.runInContext('windDescription({wind_speed_kmh:10,wind_from_deg:0})',m.ctx),/พัดไปทางใต้/);
+  assert.match(vm.runInContext('windDescription({wind_speed_kmh:10,wind_to_deg:360})',m.ctx),/พัดไปทางเหนือ/);
+});
+test('weather missing selected-hour row never becomes zero rainfall',async()=>{
+  const data=fixture();data.feeds.forecast.locations[0].rows=[];
+  const m=mount(data,true);await tick();
+  assert.match(contents(m.nodes.weatherCards),/ไม่มีข้อมูลฝน/);
+  assert.doesNotMatch(contents(m.nodes.weatherCards),/0\.00 มม/);
+});
+test('weather errors clear cards and overlays and remain recoverable',async()=>{
+  const m=mount(fixture(),true);await tick();m.leaflet.tiles[1].tileerror();
+  assert.match(m.nodes.weatherMapStatus.textContent,/โหลดภาพแผนที่/);
+  assert.equal(m.nodes.weatherCards.children.length,1);
+  m.setFail();await m.nodes.refresh.onclick();
+  assert.equal(m.leaflet.layers[1].items.length,0);assert.equal(m.nodes.weatherCards.children.length,0);
+  assert.equal(m.nodes.weatherHour.children.length,0);
+  const failed=fixture();failed.feeds.forecast.status='error';
+  const unavailable=mount(failed,true);await tick();assert.equal(unavailable.nodes.weatherCards.children.length,0);
+});
+test('weather cards work without a map library and show stale status',async()=>{
+  const data=fixture();data.feeds.forecast.cache_stale=true;
+  const m=mount(data);await tick();
+  assert.match(m.nodes.weatherSummary.textContent,/ข้อมูลพยากรณ์เก่า/);
+  assert.match(contents(m.nodes.windMap),/โหลดแผนที่ไม่ได้/);
+  assert.equal(m.nodes.weatherCards.children.length,1);
+});
+test('weather popup labels treat unknown location names as text',async()=>{
+  const data=fixture();data.feeds.forecast.locations[0].name='<script>bad()</script>';
+  const m=mount(data,true);await tick();
+  assert.equal(m.leaflet.layers[1].items[0].popup.firstChild.textContent,'<script>bad()</script>');
 });
