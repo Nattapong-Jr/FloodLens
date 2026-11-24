@@ -16,17 +16,26 @@ class Element {
   addEventListener(k,fn){this['on'+k]=fn;}
   click(){this.onclick?.();}
 }
-function mount(snapshot) {
+function leafletFake(){
+  const maps=[],layers=[],markers=[],tiles=[];
+  const L={
+    map:()=>{const m={fits:0,setView(){return this;},fitBounds(){this.fits++;return this;},invalidateSize(){},closePopup(){},panTo(){}};maps.push(m);return m;},
+    tileLayer:()=>{const t={addTo(){return this;},on(k,fn){this[k]=fn;return this;}};tiles.push(t);return t;},
+    layerGroup:()=>{const g={items:[],addTo(){return this;},clearLayers(){this.items=[];}};layers.push(g);return g;},
+    circleMarker:(position,options)=>{const m={position,options,events:{},addTo(g){if(g.items)g.items.push(this);return this;},bindTooltip(){return this;},bindPopup(p){this.popup=p;return this;},on(k,fn){this.events[k]=fn;return this;},openPopup(){this.opened=true;return this;}};markers.push(m);return m;}
+  };return {L,maps,layers,markers,tiles};
+}
+function mount(snapshot, withMap=false) {
   const html=fs.readFileSync('web/index.html','utf8'), nodes={};
   for(const match of html.matchAll(/<(\w+)[^>]*\bid="([^"]+)"/g))nodes[match[2]]=new Element(match[1]);
   nodes.scope.value='local';nodes.hours.value='48';
   for(const key of ['water','flow','rain']){const b=new Element('button');b.dataset={feed:key};nodes.feedTabs.append(b);}
-  let historyCalls=0, fail=false;
-  const ctx=vm.createContext({document:{getElementById:id=>{assert.ok(nodes[id],id);return nodes[id];},createElement:tag=>new Element(tag),createElementNS:(_,tag)=>new Element(tag)},
+  let historyCalls=0, fail=false;const leaflet=leafletFake();
+  const ctx=vm.createContext({...(withMap?{L:leaflet.L}:{}),document:{getElementById:id=>{assert.ok(nodes[id],id);return nodes[id];},createElement:tag=>new Element(tag),createElementNS:(_,tag)=>new Element(tag)},
     fetch:async url=>{if(fail)throw Error('offline');if(url.startsWith('/api/history')){historyCalls++;return {ok:true,json:async()=>({rows:snapshot.feeds.water.rows})};}return {ok:true,json:async()=>snapshot};},
     setInterval:()=>0,setTimeout:()=>0,URL,URLSearchParams,Blob,console});
   vm.runInContext(fs.readFileSync('web/dashboard.js','utf8'),ctx);
-  return {nodes,ctx,historyCalls:()=>historyCalls,setFail:()=>fail=true};
+  return {nodes,ctx,leaflet,historyCalls:()=>historyCalls,setFail:()=>fail=true};
 }
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 function fixture(){const stamp=new Date(Date.now()+3600000).toISOString();const station={station_id:'3',name:'Canal',latitude:13.74,longitude:100.79,distance_km:2,value:-.2,timestamp:new Date().toISOString(),source:'ThaiWater',unit:'m MSL',stale:false};
@@ -37,3 +46,30 @@ test('local/regional filters and signed flow display',async()=>{const m=mount(fi
 test('station selection requests observation history',async()=>{const m=mount(fixture());await tick();m.nodes.stations.firstChild.firstChild.firstChild.click();await tick();assert.equal(m.historyCalls(),1);assert.equal(m.nodes.export.disabled,false);assert.match(m.nodes.detailTitle.textContent,/Canal/);});
 test('failed refresh clears previously displayed current values',async()=>{const m=mount(fixture());await tick();m.setFail();await m.nodes.refresh.onclick();assert.equal(m.nodes.waterCount.textContent,'—');assert.equal(m.nodes.stations.children.length,0);assert.match(m.nodes.updated.textContent,/offline/);});
 test('search empty result has no map markers',async()=>{const m=mount(fixture());await tick();m.nodes.search.value='unknown-canal';m.nodes.search.oninput();assert.equal(m.nodes.stations.children.length,0);assert.equal(m.nodes.waterCount.textContent,0);});
+
+
+test('street map markers follow filters and preserve zoom during polling',async()=>{
+  const m=mount(fixture(),true);await tick();
+  assert.equal(m.leaflet.maps.length,1);assert.equal(m.leaflet.layers[0].items.length,1);
+  const fits=m.leaflet.maps[0].fits;await m.nodes.refresh.onclick();
+  assert.equal(m.leaflet.maps.length,1);assert.equal(m.leaflet.maps[0].fits,fits);
+  m.nodes.scope.value='regional';m.nodes.scope.onchange();assert.equal(m.leaflet.layers[0].items.length,2);
+  m.nodes.search.value='absent';m.nodes.search.oninput();assert.equal(m.leaflet.layers[0].items.length,0);
+});
+test('map marker opens history and failed network clears markers',async()=>{
+  const m=mount(fixture(),true);await tick();
+  m.leaflet.layers[0].items[0].events.click();await tick();
+  assert.equal(m.historyCalls(),1);assert.equal(m.nodes.export.disabled,false);
+  m.setFail();await m.nodes.refresh.onclick();assert.equal(m.leaflet.layers[0].items.length,0);
+});
+test('map errors leave the station table usable',async()=>{
+  const m=mount(fixture(),true);await tick();m.leaflet.tiles[0].tileerror();
+  assert.ok(m.nodes.mapStatus.textContent);assert.equal(m.nodes.stations.children.length,1);
+  const offline=mount(fixture());await tick();assert.equal(offline.nodes.geo.firstChild.tag,'p');
+  offline.nodes.stations.firstChild.firstChild.firstChild.click();await tick();assert.equal(offline.historyCalls(),1);
+});
+test('stale markers stay distinct and untrusted names remain text',async()=>{
+  const data=fixture();data.feeds.water.rows[0].stale=true;data.feeds.water.rows[0].name='<img src=x onerror=alert(1)>';
+  const m=mount(data,true);await tick();const marker=m.leaflet.layers[0].items[0];
+  assert.equal(marker.options.fillColor,'#748594');assert.equal(marker.popup.firstChild.textContent,data.feeds.water.rows[0].name);
+});
