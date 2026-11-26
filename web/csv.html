@@ -1,31 +1,61 @@
 <!doctype html>
-<html lang="th"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>FloodLens | ลาดกระบัง</title>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FloodLens | วิเคราะห์ข้อมูล CSV</title>
 <style>
-:root{font-family:Tahoma,system-ui,sans-serif;color:#dbeafe;background:#081523}body{margin:0}main{max-width:1120px;margin:auto;padding:32px 20px}h1{font-size:38px;margin-bottom:8px}h2{font-size:21px}p,small{line-height:1.8;color:#abc1d5}section{background:#102337;border:1px solid #29455c;border-radius:16px;padding:22px;margin:20px 0}.tag,a{color:#67e8f9}button,select,input{padding:10px;border:1px solid #3e607c;border-radius:8px;background:#183149;color:white;margin:4px}button{cursor:pointer}.notice{border-left:4px solid #eab85b;padding:12px;background:#302a1e;line-height:1.8}.scroll{overflow:auto;max-height:480px}table{border-collapse:collapse;width:100%;white-space:nowrap}th,td{padding:12px;text-align:left;border-bottom:1px solid #29455c;font-size:14px}.error{color:#ffb4ab}.status{color:#a7f3d0}footer{line-height:1.8;color:#abc1d5}#demo{display:none}.bar{height:8px;background:#67e8f9;border-radius:3px;min-width:1px}label{display:inline-block}
-</style>
-<main><a href="/">FloodLens Monitor</a><span class="tag">ENVIRONMENTAL DATA EXPLORER</span><h1>FloodLens / ลาดกระบัง</h1>
-<p>ติดตามสถานีฝนและน้ำในรัศมี 10 กม. จากพิกัดโดยประมาณของ KMITL (13.73, 100.78) รวมพื้นที่ข้างเคียงที่อยู่ในรัศมี ไม่ใช่ขอบเขตการปกครอง</p>
-<label>แหล่งข้อมูล <select id="mode"><option value="live">API · บริเวณลาดกระบัง</option><option value="demo">CSV · วิเคราะห์ข้อมูลเดิม</option></select></label>
-<div id="live"><button id="refresh">โหลดข้อมูล</button><small>รีเฟรชอัตโนมัติทุก 5 นาที · เซิร์ฟเวอร์พักผล API ไว้ 5 นาที</small><p id="loading" role="status"></p>
-<div class="notice">ข้อมูลตรวจวัดและพยากรณ์แสดงแยกกัน หากต้นทางขัดข้องจะแสดงว่าไม่พร้อมใช้งาน ไม่มีการแทนด้วยข้อมูลจำลอง ระบบนี้ใช้สำรวจข้อมูล ไม่ใช่ระบบแจ้งเตือนภัย</div>
-<section><h2>ระดับน้ำจากสถานีตรวจวัด</h2><p>หน่วยเมตรเทียบระดับทะเลปานกลาง (ม.รทก.) ไม่ใช่ความลึกน้ำท่วมบนถนน แต่ละสถานีมีบริบทต่างกัน</p><p id="waterStatus"></p><div class="scroll"><table><thead><tr><th>สถานี</th><th>ระยะจากจุดอ้างอิง</th><th>ระดับน้ำ (ม.รทก.)</th><th>เวลาตรวจวัด</th><th>ความสดใหม่</th></tr></thead><tbody id="waterRows"></tbody></table></div></section>
-<section><h2>ฝนสะสม 24 ชั่วโมงจากสถานีตรวจวัด</h2><p>แสดงค่าล่าสุดของแต่ละสถานี หน่วย มม./24 ชม. ไม่รวมค่าของหลายสถานีหรือหลายช่วง 24 ชั่วโมงเข้าด้วยกัน</p><p id="rainStatus"></p><div class="scroll"><table><thead><tr><th>สถานี</th><th>ระยะจากจุดอ้างอิง</th><th>ฝน (มม./24 ชม.)</th><th>เวลาตรวจวัด</th><th>ความสดใหม่</th></tr></thead><tbody id="rainRows"></tbody></table></div></section>
-<section><h2>พยากรณ์ฝนรายชั่วโมง · จุดอ้างอิง KMITL</h2><p>ข้อมูลแบบจำลองจาก Open-Meteo ไม่ใช่เครื่องวัดฝนในมหาวิทยาลัย ปริมาณหยาดน้ำฟ้าของชั่วโมงที่สิ้นสุด ณ เวลาที่ระบุ</p><p id="forecastStatus"></p><div class="scroll"><table><thead><tr><th>เวลาไทย</th><th>ปริมาณ (มม.)</th><th>โอกาสเกิด (%)</th><th>ปริมาณเทียบกัน</th></tr></thead><tbody id="forecastRows"></tbody></table></div></section></div>
-<div id="demo"><div class="notice" id="demoNotice"></div><section><h2>ข้อมูล CSV</h2><label>สถานี <select id="station"></select></label><label>เริ่ม <input id="start" type="date"></label><label>สิ้นสุด <input id="end" type="date"></label><button id="export">ดาวน์โหลด CSV</button><p id="summary"></p><p id="issues"></p><div class="scroll"><table><thead><tr><th>เวลา</th><th>สถานี</th><th>ฝน (มม.)</th><th>ระดับน้ำ (ม.)</th><th>แหล่งข้อมูล</th></tr></thead><tbody id="records"></tbody></table></div></section></div>
-<footer>แหล่งข้อมูล: <a href="https://www.thaiwater.net/water/wl" target="_blank" rel="noopener">ThaiWater / สสน. และหน่วยงานเจ้าของสถานี</a> · <a href="https://open-meteo.com/" target="_blank" rel="noopener">Weather data by Open-Meteo.com</a> (CC BY 4.0)<br>เวลาตรวจวัดระบุในแต่ละสถานี เวลาโหลดข้อมูลไม่ใช่เวลาตรวจวัด ค่าฝน 0 หมายถึงต้นทางรายงานว่าไม่มีฝนในช่วงสะสม ไม่ใช่ข้อมูลขาดหาย</footer></main>
+:root{color-scheme:dark;font-family:Tahoma,system-ui,sans-serif;color:#dbeafe;background:#081523}body{margin:0}main{max-width:1120px;margin:auto;padding:24px}a{color:#67e8f9}p{line-height:1.7;color:#abc1d5}section{background:#102337;border:1px solid #29455c;border-radius:12px;padding:16px}button{font:inherit;padding:10px 14px;border:1px solid #52748b;border-radius:8px;background:#183149;color:white;cursor:pointer}button:disabled{opacity:.55;cursor:default}.scroll{overflow:auto}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:10px;border-bottom:1px solid #29455c}
+</style></head>
+<body><main>
+<a href="/">← กลับหน้าติดตามน้ำและฝน</a>
+<h1>วิเคราะห์ข้อมูล CSV</h1>
+<p id="selection" role="status"></p>
+<section aria-labelledby="heading">
+<h2 id="heading">ข้อมูลสถานีที่เลือกจากหน้าหลัก</h2>
+<p id="status"></p><p id="summary"></p>
+<button id="export" disabled>ดาวน์โหลดชุดนี้เป็น CSV</button>
+<div class="scroll"><table><thead><tr><th>สถานี</th><th>ระยะจาก KMITL</th><th id="valueHeading">ค่าที่วัด</th><th>เวลาที่วัด</th><th>แหล่งข้อมูล</th><th>สถานะข้อมูล</th></tr></thead><tbody id="records"></tbody></table></div>
+</section></main>
 <script>
-const el=id=>document.getElementById(id);let dataset=[],filtered=[];
-const fmt=t=>new Date(t).toLocaleString('th-TH',{timeZone:'Asia/Bangkok'});
-const day=t=>{const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(t));const v=k=>p.find(x=>x.type===k).value;return `${v('year')}-${v('month')}-${v('day')}`};
-function row(target,values){const tr=document.createElement('tr');values.forEach(v=>{const td=document.createElement('td');td.textContent=v??'ไม่มีข้อมูล';tr.append(td)});el(target).append(tr);return tr}
-function feedStatus(name,f){const target=el(name+'Status');target.className=f.status==='error'?'error':'status';target.textContent=f.status==='error'?'ดึงข้อมูลไม่ได้: '+f.error:f.status==='empty'?'ไม่พบข้อมูลที่ใช้ได้ในพื้นที่ที่กำหนด':'ดึงข้อมูลเมื่อ '+fmt(f.fetched_at);if(f.rejected)target.textContent+=' · ข้ามระเบียนที่ข้อมูลไม่ครบหรือไม่ถูกต้อง '+f.rejected+' รายการ';}
-let busy=false;
-async function refresh(){if(busy)return;busy=true;el('refresh').disabled=true;el('loading').textContent='กำลังติดต่อแหล่งข้อมูล…';try{const response=await fetch('/api/live');if(!response.ok)throw Error('HTTP '+response.status);const data=await response.json();for(const name of ['water','rain','forecast']){const f=data.feeds[name];feedStatus(name,f);el(name+'Rows').replaceChildren();if(name==='forecast'){const max=Math.max(1,...f.rows.map(r=>r.precipitation_mm??0));f.rows.forEach(r=>{const tr=row('forecastRows',[fmt(r.timestamp),r.precipitation_mm,r.probability_pct,'']);if(r.precipitation_mm!==null){const bar=document.createElement('div');bar.className='bar';bar.style.width=(r.precipitation_mm/max*150)+'px';tr.lastChild.append(bar)}})}else f.rows.forEach(r=>row(name+'Rows',[r.name||r.station_id,r.distance_km+' กม.',r.value,fmt(r.timestamp),r.stale?'ข้อมูลเก่า / เวลาผิดปกติ':'อายุไม่เกิน 3 ชม.']));}el('loading').textContent='ตรวจสอบแหล่งข้อมูลเสร็จแล้ว';}catch(e){el('loading').textContent='โหลดไม่สำเร็จ: '+e.message;for(const name of ['water','rain','forecast']){el(name+'Rows').replaceChildren();el(name+'Status').textContent='ข้อมูลไม่พร้อมใช้งาน';}}finally{busy=false;el('refresh').disabled=false}}
-function render(){filtered=dataset.filter(r=>r.station_id===el('station').value&&day(r.timestamp)>=el('start').value&&day(r.timestamp)<=el('end').value);el('records').replaceChildren();filtered.forEach(r=>row('records',[fmt(r.timestamp),r.station_id,r.rain_mm,r.water_level_m,r.source]));const rains=filtered.filter(r=>r.rain_mm!==null);el('summary').textContent=filtered.length+' ระเบียน · ผลรวมฝนตามช่วง CSV: '+(rains.length?rains.reduce((s,r)=>s+r.rain_mm,0).toFixed(1)+' มม.':'ไม่มีข้อมูล')+' (ใช้ได้เมื่อแต่ละระเบียนเป็นช่วงสะสมที่ไม่ซ้อนกัน)';}
-fetch('/api/data').then(r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.json()}).then(d=>{dataset=d.rows;el('demoNotice').textContent=dataset.some(r=>r.is_demo==='true')?'DEMO · มีข้อมูลจำลอง ไม่ใช่เหตุการณ์น้ำท่วมจริง':'ข้อมูล CSV ที่ผู้ใช้นำเข้า';[...new Set(dataset.map(r=>r.station_id))].forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;el('station').append(o)});if(dataset.length){const dates=dataset.map(r=>day(r.timestamp)).sort();el('start').value=dates[0];el('end').value=dates.at(-1)}el('issues').textContent=d.issues.map(i=>`บรรทัด ${i.line}: ${i.message}`).join(' | ');render()}).catch(e=>el('demoNotice').textContent='โหลด CSV ไม่ได้: '+e.message);
-['station','start','end'].forEach(id=>el(id).onchange=render);
-el('mode').onchange=()=>{el('live').style.display=el('mode').value==='live'?'block':'none';el('demo').style.display=el('mode').value==='demo'?'block':'none'};
-el('export').onclick=()=>{const fields=['timestamp','station_id','rain_mm','water_level_m','source','is_demo'];const quote=v=>'"'+String(v??'').replaceAll('"','""')+'"';const blob=new Blob(['\ufeff'+[fields.join(','),...filtered.map(r=>fields.map(f=>quote(r[f])).join(','))].join('\r\n')],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='floodlens-filtered.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
-el('mode').value='demo';el('mode').onchange();el('mode').disabled=true;
-</script></html>
+'use strict';
+const el = id => document.getElementById(id);
+const formatTime = value => value ? new Date(value).toLocaleString('th-TH', {timeZone:'Asia/Bangkok'}) : 'ไม่ทราบ';
+let selection;
+try {
+  selection = JSON.parse(sessionStorage.getItem('floodlens.csv.selection'));
+} catch {
+  selection = null;
+}
+if (Array.isArray(selection?.rows)) {
+  const {rows, label, unit, scope, search, fresh, status, capturedAt} = selection;
+  const area = scope === 'local' ? 'รอบ KMITL 10 กม.' : 'พื้นที่รอบกรุงเทพฯ 150 กม.';
+  el('selection').textContent = [label, area, search ? 'ค้นหา: '+search : '', fresh ? 'ซ่อนข้อมูลเก่า' : 'รวมข้อมูลเก่า'].filter(Boolean).join(' · ');
+  el('status').textContent = 'ชุดข้อมูลจากหน้าหลัก ณ '+formatTime(capturedAt)+' · '+status;
+  el('valueHeading').textContent = label+' ('+unit+')';
+  const values = rows.map(row => row.value).filter(Number.isFinite);
+  const average = values.length ? (values.reduce((sum, value) => sum+value, 0)/values.length).toFixed(2) : null;
+  el('summary').textContent = rows.length ? rows.length+' รายการ'+(average === null ? '' : ' · ค่าเฉลี่ยของค่าที่แสดง '+average+' '+unit) : 'ไม่มีข้อมูลสถานีในชุดที่เลือก';
+  for (const row of rows) {
+    const tr = el('records').insertRow();
+    for (const value of [row.name || row.station_id, row.distance_km+' กม.', Number.isFinite(row.value) ? row.value.toFixed(2) : null, formatTime(row.timestamp), row.source, row.stale ? 'ข้อมูลเก่า / ไม่ทราบเวลา' : 'ข้อมูลล่าสุด']) {
+      tr.insertCell().textContent = value ?? 'ไม่ทราบ';
+    }
+  }
+  el('export').disabled = !rows.length;
+  el('export').onclick = () => {
+    const fields = ['timestamp','station_id','name','distance_km','value','unit','source','stale'];
+    const quote = value => {
+      const safe = typeof value === 'string' ? value.replace(/^(?:[\t\r\n]|\s*[=+@-])/, "'$&") : value;
+      return '"'+String(safe ?? '').replaceAll('"','""')+'"';
+    };
+    const lines = rows.map(row => fields.map(field => quote(field === 'unit' ? unit : row[field])).join(','));
+    const blob = new Blob(['\ufeff'+[fields.join(','), ...lines].join('\r\n')], {type:'text/csv;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'floodlens-selected-stations.csv';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+} else {
+  el('selection').textContent = 'เลือกประเภทข้อมูลและตัวกรองที่หน้าหลัก แล้วกดวิเคราะห์ข้อมูล CSV เพื่อเปิดชุดที่กำลังดู';
+}
+</script></body></html>

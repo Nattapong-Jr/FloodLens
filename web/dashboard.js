@@ -220,4 +220,21 @@ el('stormToggle').onclick=()=>{const open=el('stormPanel').classList.toggle('hid
 el('export').onclick=()=>{if(!selected||!history.length)return;const fields=['timestamp','station_id','name','value','unit','source'];
   const quote=v=>'"'+String(v??'').replace(/^[=+@-]/,"'$&").replaceAll('"','""')+'"';
   const blob=new Blob(['\ufeff'+[fields.join(','),...history.map(r=>fields.map(k=>quote(r[k])).join(','))].join('\r\n')],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`floodlens-${selected.feed}-history.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+el('analyzeCsv').onclick = event => {
+  try {
+    sessionStorage.setItem('floodlens.csv.selection', JSON.stringify({
+      label: names[feed],
+      unit: units[feed],
+      scope: el('scope').value,
+      search: el('search').value.trim(),
+      fresh: el('fresh').checked,
+      status: status(snapshot?.feeds[feed]),
+      capturedAt: new Date().toISOString(),
+      rows: rowsFor(feed),
+    }));
+  } catch {
+    event.preventDefault();
+    el('updated').textContent = 'เปิดหน้าวิเคราะห์ไม่ได้ กรุณาอนุญาตให้เว็บไซต์จัดเก็บข้อมูลในเบราว์เซอร์';
+  }
+};
 refresh();setInterval(refresh,30000);
