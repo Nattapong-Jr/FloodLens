@@ -125,3 +125,24 @@ timestamp,station_id,rain_mm,water_level_m,source,is_demo
 `data/demo.csv` เป็นข้อมูลจำลอง ใช้ทดลองหน้าจอ ไม่ใช่หลักฐานเหตุการณ์น้ำท่วมจริง ช่องว่างเป็น null ไม่ใช่ศูนย์ timestamp ต้องมี timezone ฝนต้องไม่ติดลบ ระดับน้ำติดลบได้ตามจุดอ้างอิง ห้ามนำค่าฝนสะสม 24 ชั่วโมงที่ซ้อนกันมาแปลงเป็นฝนแต่ละชั่วโมงแล้วรวมยอด
 
 โหมด CSV มีตัวกรองสถานี วันที่ และดาวน์โหลด CSV ส่วน API แสดงตารางระดับน้ำ ฝนสะสม และกราฟแท่งพยากรณ์แยกกัน
+
+## Community photo reports
+
+Open `/report` from the dashboard to submit a situation report or request for help.
+The form accepts one JPEG/PNG up to 3 MB, a location description, incident details,
+and optional device coordinates. Submissions are saved in the configured SQLite
+file (`--db`) and receive a reference ID; the latest 50 are displayed as unverified.
+Photos and coordinates are visible to everyone who can access this local server.
+
+This is a local prototype: saving a request does not notify emergency responders.
+There is no responder integration, account verification, moderation, status workflow,
+or contact collection yet. Image validation checks size and file signatures, not
+full image decoding; metadata is not stripped. Do not publish this prototype as a
+public upload service without addressing these limitations and abuse/storage limits.
+The server continues to bind to 127.0.0.1; mobile access needs a separately configured
+host and secure context for camera/geolocation support. No external notifications
+are sent by this feature.
+
+Verify with `python -m unittest discover -s tests` and
+`node --check web/reports.js`. Restart `python app.py`, visit `/report`, submit a
+photo, and verify the reference ID, latest listing, and image after a restart.
