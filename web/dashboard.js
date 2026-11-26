@@ -41,7 +41,7 @@ function plotMap(target,points){
   }
   if(!stationMap){
     target.replaceChildren();
-    stationMap=L.map(target,{scrollWheelZoom:false}).setView([13.73,100.78],12);
+    stationMap=L.map(target,{scrollWheelZoom:true}).setView([13.73,100.78],12);
     stationTiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
       maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(stationMap);
@@ -159,7 +159,7 @@ function renderWeatherMap(points){
     target.replaceChildren();text('p','โหลดแผนที่ไม่ได้ อ่านฝนและลมจากการ์ดด้านล่างได้ หรือโหลดหน้าใหม่เมื่อเชื่อมต่ออินเทอร์เน็ต',target);return;
   }
   if(!weatherMap){
-    target.replaceChildren();weatherMap=L.map(target,{scrollWheelZoom:false}).setView([13.9,100.7],9);
+    target.replaceChildren();weatherMap=L.map(target,{scrollWheelZoom:true}).setView([13.9,100.7],9);
     const tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,
       attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(weatherMap);
     tiles.on('tileerror',()=>{note.textContent='โหลดภาพแผนที่บางส่วนไม่ได้ ยังอ่านค่าจากการ์ดแต่ละพื้นที่ได้';});
