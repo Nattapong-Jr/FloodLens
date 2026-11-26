@@ -5,8 +5,46 @@
 <style>
 :root{color-scheme:dark;font-family:Tahoma,system-ui,sans-serif;background:#071420;color:#dcebf7;--muted:#a0b7ca;--cyan:#60e4e4;--line:#294256}*{box-sizing:border-box}body{margin:0}main{max-width:1420px;margin:auto;padding:28px}header,.toolbar,.tabs,.flex{display:flex;align-items:center;gap:14px;flex-wrap:wrap}header{justify-content:space-between}h1{font-size:34px;letter-spacing:-1px;margin:8px 0}h2{font-size:19px;margin:0 0 12px}h3{font-size:16px}p,small{color:var(--muted);line-height:1.8}a{color:var(--cyan)}.eyebrow{color:var(--cyan);letter-spacing:2px;font-size:12px}button,select,input{font:inherit;background:#122d42;border:1px solid #3c5c73;color:inherit;border-radius:8px;padding:10px}input{min-width:170px}button{cursor:pointer}button:disabled{opacity:.5;cursor:wait}button.active{border-color:var(--cyan);color:var(--cyan)}label{font-size:13px;color:var(--muted)}section,.card{background:#0d2132;border:1px solid var(--line);border-radius:14px;padding:20px;margin-top:18px}.toolbar{margin:22px 0}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.card{margin:0}.value{font-size:30px;color:var(--cyan);margin:12px 0}.split{display:grid;grid-template-columns:1.8fr 1fr;gap:18px}.notice{background:#292a20;border-left:3px solid #dfbc69;padding:12px 16px;color:#e9dbb9;font-size:13px;line-height:1.8}.error{color:#ffb6ac}.good{color:#94e1c3}.badge{padding:5px 9px;background:#17354b;border-radius:6px;font-size:12px}.scroll{overflow:auto;max-height:440px}table{border-collapse:collapse;width:100%;font-size:13px;white-space:nowrap}td,th{text-align:left;padding:12px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-weight:normal;position:sticky;top:0;background:#0d2132}.station-button{background:none;border:0;padding:0;color:var(--cyan);text-align:left}.station-button:hover{text-decoration:underline}#historyChart svg,#forecastChart svg{width:100%;height:auto;display:block}#geo,#windMap{height:460px;min-height:320px;border-radius:10px;margin:12px 0;background:#dbe5e8;isolation:isolate;color:#172e3e}.leaflet-container{font-family:Tahoma,system-ui,sans-serif;color-scheme:light}.leaflet-popup-content p{color:#334155;margin:8px 0}.leaflet-popup-content strong{color:#172e3e}.map-history{background:#087f8c;color:white;border:0}.map-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px}.map-dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:5px;background:#087f8c}.map-dot.old{background:#748594}.map-dot.home{background:#ffd166}.map-tools{margin-top:12px}.leaflet-control-attribution a{color:#075e79}#historyChart{min-height:160px}.key{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--cyan);margin-right:5px}.muted{color:var(--muted)}.hidden{display:none!important}.links{display:flex;gap:16px;flex-wrap:wrap;margin:16px 0}iframe{width:100%;height:560px;border:1px solid var(--line);border-radius:10px;background:#fff}.storm-panel{margin-top:16px}footer{margin:24px 0;font-size:12px;color:var(--muted);line-height:1.8}#feedStatus{min-height:24px}#detail{scroll-margin-top:20px}button:focus-visible,a:focus-visible{outline:2px solid #fff;outline-offset:4px}@media(max-width:900px){main{padding:16px}.cards{grid-template-columns:repeat(2,1fr)}.split{grid-template-columns:1fr}.value{font-size:24px}h1{font-size:29px}}@media(max-width:480px){.cards{grid-template-columns:1fr 1fr;gap:8px}.card{padding:12px}.toolbar>*{width:100%}}
 .weather-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:18px 0}.weather-card{padding:18px;background:#122d42;border:1px solid #3c5c73;border-radius:12px}.weather-card p{margin:10px 0;font-size:14px}.weather-place{border:0;padding:0;background:none;color:#60e4e4;text-align:left;font-weight:bold;min-height:30px}.weather-rain{font-size:27px;font-weight:bold;margin-top:16px}.weather-card .weather-wind{color:#e4eff7}.weather-label{background:#fff;color:#172e3e;border:1px solid #b3c7d3;box-shadow:0 2px 8px #0002;text-align:center;font-size:13px;padding:6px 10px}.weather-summary{padding:12px 16px;border-left:3px solid #60e4e4;background:#122d42;color:#e4eff7}details summary{cursor:pointer;padding:12px 0;color:#a0b7ca}@media(max-width:480px){#windMap{height:380px}.weather-cards{grid-template-columns:1fr}}
+.dashboard-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0 22px;
+}
+.dashboard-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 64px;
+  padding: 12px 16px;
+  border: 1px solid #52748b;
+  border-radius: 10px;
+  background: #122d42;
+  color: #e4eff7;
+  text-decoration: none;
+}
+.dashboard-action small { display: block; color: #bed1e0; }
+.dashboard-action.primary-action { background: #60e4e4; color: #071420; border-color: #60e4e4; }
+.dashboard-action.primary-action small { color: #193c48; }
+.dashboard-action:hover { background: #1b405a; }
+.dashboard-action.primary-action:hover { background: #a0f2f2; }
+.dashboard-action:hover strong { text-decoration: underline; }
+@media (max-width: 600px) {
+  .dashboard-actions { grid-template-columns: 1fr; }
+}
 </style></head><body><main>
-<header><div><span class="eyebrow">WATER · RAIN · REGIONAL CONTEXT</span><h1>FloodLens <span class="muted">Monitor</span></h1><p>ลาดกระบังและสถานีรอบกรุงเทพฯ · เก็บข้อมูลต่อเนื่องขณะเซิร์ฟเวอร์ทำงาน</p></div><div><a href="/report">แจ้งสถานการณ์ / ขอความช่วยเหลือ</a> · <a href="/csv">วิเคราะห์ CSV</a> <span class="badge" id="collector">กำลังตรวจระบบ</span></div></header>
+<header><div><span class="eyebrow">WATER · RAIN · REGIONAL CONTEXT</span><h1>FloodLens <span class="muted">Monitor</span></h1><p>ลาดกระบังและสถานีรอบกรุงเทพฯ · เก็บข้อมูลต่อเนื่องขณะเซิร์ฟเวอร์ทำงาน</p></div><span class="badge" id="collector">กำลังตรวจระบบ</span></header>
+<nav class="dashboard-actions" aria-label="เมนู FloodLens">
+  <a class="dashboard-action primary-action" href="/report">
+    <span><strong>แจ้งสถานการณ์ / ขอความช่วยเหลือ</strong><small>แนบรูปและระบุจุดเกิดเหตุ</small></span>
+    <span aria-hidden="true">→</span>
+  </a>
+  <a class="dashboard-action" href="/csv">
+    <span><strong>วิเคราะห์ข้อมูล CSV</strong><small>เปิดหน้าดูและวิเคราะห์ข้อมูลจากไฟล์ CSV</small></span>
+    <span aria-hidden="true">→</span>
+  </a>
+</nav>
 <div class="toolbar"><label>พื้นที่ <select id="scope"><option value="local">รอบ KMITL 10 กม.</option><option value="regional">บริบทรอบกรุงเทพฯ 150 กม.</option></select></label><label>ค้นหาสถานี / คลอง / จังหวัด <input id="search" type="search" placeholder="เช่น ประเวศ ลำปลาทิว เจ้าพระยา"></label><label><input id="fresh" type="checkbox" style="min-width:0"> ซ่อนข้อมูลเก่า</label><button id="refresh">ตรวจข้อมูลล่าสุด</button><small id="updated" role="status" aria-live="polite"></small></div>
 <div class="cards"><div class="card"><small>สถานีระดับน้ำในมุมมอง</small><div class="value" id="waterCount">—</div><small id="waterMeta">รอข้อมูล</small></div><div class="card"><small>สถานีอัตราการไหล</small><div class="value" id="flowCount">—</div><small id="flowMeta">รอข้อมูล</small></div><div class="card"><small>ฝนพยากรณ์ KMITL 24 ชม. ถัดไป</small><div class="value" id="forecastTotal">—</div><small id="forecastMeta">แบบจำลอง ไม่ใช่การตรวจวัด</small></div><div class="card"><small>ระเบียนตรวจวัดที่เก็บแล้ว</small><div class="value" id="archiveCount">—</div><small id="archiveMeta">เริ่มสะสมหลังเปิดระบบ</small></div></div>
 <p class="notice">พื้นที่ 150 กม. เป็นบริบททางภูมิศาสตร์ ไม่ใช่ขอบเขตลุ่มน้ำหรือต้นน้ำของลาดกระบังทั้งหมด อัตราการไหลแต่ละจุดห้ามบวกเป็นยอดน้ำเข้าลาดกระบัง; ลมใกล้พื้นดินไม่ใช่ทิศเคลื่อนตัวของพายุ</p>
