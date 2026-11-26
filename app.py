@@ -5,6 +5,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
+from floodlens.incidents import Incidents, MAX_REQUEST
 from floodlens.data import load_csv
 from floodlens.live import LiveService
 from floodlens.monitor import Monitor
@@ -53,6 +54,7 @@ def main():
         return 0 if all(feed['status'] == 'ok' for feed in result['feeds'].values()) else 1
     store = Store(args.db)
     monitor = Monitor(live, store)
+    incidents = Incidents(store)
     if args.collect_once:
         monitor.collect()
         result = monitor.view('regional')
@@ -61,7 +63,72 @@ def main():
     rows, issues = load_csv(args.data)
 
     class Handler(BaseHTTPRequestHandler):
+        def reply(self, payload, status=200):
+            body = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode()
+            self.send_response(status)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_POST(self):
+            if self.path != '/api/reports':
+                self.reply({'error': 'Not found'}, 404)
+                return
+            # Browsers must submit from this server, never from an unrelated site.
+            origin = self.headers.get('Origin')
+            if origin and origin != 'http://' + self.headers.get('Host', ''):
+                self.reply({'error': 'Origin not allowed'}, 403)
+                return
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= MAX_REQUEST:
+                    self.close_connection = True
+                    self.reply({'error': 'ข้อมูลมีขนาดใหญ่เกินไป (รูปไม่เกิน 3 MB)'}, 413)
+                    return
+                if self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
+                    self.reply({'error': 'Content-Type must be application/json'}, 415)
+                    return
+                payload = json.loads(self.rfile.read(length))
+                result = incidents.create(payload)
+            except (ValueError, UnicodeError) as exc:
+                self.reply({'error': str(exc)}, 400)
+                return
+            except Exception:
+                self.reply({'error': 'บันทึกไม่สำเร็จ กรุณาลองอีกครั้ง'}, 500)
+                return
+            self.reply(result, 201)
+
         def do_GET(self):
+            route = urlsplit(self.path).path
+            if route == '/api/reports':
+                self.reply(incidents.latest())
+                return
+            if route.startswith('/api/reports/') and route.endswith('/photo'):
+                item = incidents.photo(route[len('/api/reports/'):-len('/photo')])
+                if not item:
+                    self.send_error(404)
+                    return
+                self.send_response(200)
+                self.send_header('Content-Type', item[0])
+                self.send_header('Content-Length', str(len(item[1])))
+                self.send_header('Cache-Control', 'no-store')
+                self.send_header('X-Content-Type-Options', 'nosniff')
+                self.end_headers()
+                self.wfile.write(item[1])
+                return
+            if route in ('/report', '/reports.js'):
+                filename = 'report.html' if route == '/report' else 'reports.js'
+                body = (ROOT / 'web' / filename).read_bytes()
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/html; charset=utf-8' if route == '/report' else 'text/javascript; charset=utf-8')
+                self.send_header('Content-Length', str(len(body)))
+                self.send_header('Cache-Control', 'no-store')
+                self.end_headers()
+                self.wfile.write(body)
+                return
             status = 200
             try:
                 payload = api_response(self.path, monitor, store, rows, issues)
