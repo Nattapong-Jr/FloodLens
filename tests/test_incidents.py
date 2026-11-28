@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from floodlens.incidents import Incidents, MAX_IMAGE
+from floodlens.help_requests import HelpRequests
 from floodlens.store import Store
 
 
@@ -15,7 +16,7 @@ class IncidentTests(unittest.TestCase):
         self.incidents = Incidents(self.store)
         # Signature fixture only; this is not a real decoded image.
         self.photo = b'\xff\xd8\xfffixture\xff\xd9'
-        self.payload = dict(kind='help', severity='high', location='KMITL',
+        self.payload = dict(kind='situation', severity='high', location='KMITL',
                             description='Flooded road', latitude=13.73, longitude=100.78,
                             photo=base64.b64encode(self.photo).decode())
 
@@ -45,6 +46,19 @@ class IncidentTests(unittest.TestCase):
         result = self.incidents.create(dict(self.payload, latitude=None, longitude=None))
         self.assertEqual(result['status'], 'recorded')
         self.assertIsNone(self.incidents.latest()['reports'][0]['latitude'])
+
+    def test_help_is_private_including_legacy_reports(self):
+        old = self.incidents.create(self.payload)
+        with self.store.connect() as db:
+            db.execute("UPDATE incidents SET kind='help' WHERE id=?", (old['id'],))
+        help_requests = HelpRequests(self.store)
+        receipt = help_requests.create(dict(need='evacuation', people=2, landmark='Dorm gate',
+                                            contact='private', details='Two students'))
+        self.assertEqual(receipt['status'], 'received')
+        self.assertNotIn('contact', receipt)
+        self.assertEqual(self.incidents.latest(), {'reports': []})
+        self.assertIsNone(self.incidents.photo(old['id']))
+        self.assertIsNone(self.incidents.photo(receipt['id']))
 
 class IncidentHandlerTests(unittest.TestCase):
     def test_http_contract_without_socket(self):

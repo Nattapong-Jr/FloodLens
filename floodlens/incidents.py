@@ -1,13 +1,30 @@
 """Local community incident reports, stored separately from sensor observations."""
 import base64
 import binascii
-import math
 import sqlite3
 import uuid
 from datetime import datetime, timezone
 
 MAX_IMAGE = 3 * 1024 * 1024
 MAX_REQUEST = 4 * 1024 * 1024 + 8192
+
+
+def field(data, key, maximum, required=True):
+    value = data.get(key, '')
+    if not isinstance(value, str) or len(value) > maximum or (required and not value.strip()):
+        raise ValueError(f'{key}: กรุณากรอกข้อมูลไม่เกิน {maximum} ตัวอักษร')
+    return value.strip()
+
+
+def coordinates(data):
+    lat, lon = data.get('latitude'), data.get('longitude')
+    if (lat is None) != (lon is None):
+        raise ValueError('กรุณาระบุพิกัดให้ครบ')
+    if lat is not None:
+        for value, limit in ((lat, 90), (lon, 180)):
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not -limit <= value <= limit:
+                raise ValueError('พิกัดไม่ถูกต้อง')
+    return lat, lon
 
 
 class Incidents:
@@ -22,22 +39,11 @@ class Incidents:
     def create(self, data):
         if not isinstance(data, dict):
             raise ValueError('ข้อมูลต้องเป็น JSON object')
-        def field(key, maximum):
-            value = data.get(key)
-            if not isinstance(value, str) or not value.strip() or len(value) > maximum:
-                raise ValueError(f'{key}: กรุณากรอกข้อมูลไม่เกิน {maximum} ตัวอักษร')
-            return value.strip()
-        kind, severity = field('kind', 20), field('severity', 20)
-        if kind not in ('situation', 'help') or severity not in ('low', 'medium', 'high'):
+        kind, severity = field(data, 'kind', 20), field(data, 'severity', 20)
+        if kind != 'situation' or severity not in ('low', 'medium', 'high'):
             raise ValueError('ประเภทหรือระดับความเร่งด่วนไม่ถูกต้อง')
-        location, description = field('location', 200), field('description', 2000)
-        lat, lon = data.get('latitude'), data.get('longitude')
-        if (lat is None) != (lon is None):
-            raise ValueError('กรุณาระบุพิกัดให้ครบ')
-        if lat is not None:
-            for value, limit in ((lat, 90), (lon, 180)):
-                if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or abs(value) > limit:
-                    raise ValueError('พิกัดไม่ถูกต้อง')
+        location, description = field(data, 'location', 200), field(data, 'description', 2000)
+        lat, lon = coordinates(data)
         encoded = data.get('photo')
         if not isinstance(encoded, str) or len(encoded) > MAX_REQUEST:
             raise ValueError('กรุณาแนบรูป JPEG หรือ PNG ขนาดไม่เกิน 3 MB')
@@ -64,10 +70,12 @@ class Incidents:
         with self.store.connect() as db:
             db.row_factory = sqlite3.Row
             rows = db.execute('''SELECT id, created_at, kind, severity, location,
-                description, latitude, longitude FROM incidents ORDER BY created_at DESC LIMIT 50''').fetchall()
+                description, latitude, longitude FROM incidents WHERE kind='situation'
+                ORDER BY created_at DESC LIMIT 50''').fetchall()
         return {'reports': [dict(row, photo_url='/api/reports/' + row['id'] + '/photo',
                                  status='unverified') for row in rows]}
 
     def photo(self, ident):
         with self.store.connect() as db:
-            return db.execute('SELECT mime, photo FROM incidents WHERE id=?', (ident,)).fetchone()
+            return db.execute("SELECT mime, photo FROM incidents WHERE id=? AND kind='situation'",
+                              (ident,)).fetchone()

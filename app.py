@@ -6,6 +6,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from floodlens.incidents import Incidents, MAX_REQUEST
+from floodlens.help_requests import HelpRequests
 from floodlens.data import load_csv
 from floodlens.live import LiveService
 from floodlens.monitor import Monitor
@@ -55,6 +56,7 @@ def main():
     store = Store(args.db)
     monitor = Monitor(live, store)
     incidents = Incidents(store)
+    help_requests = HelpRequests(store)
     if args.collect_once:
         monitor.collect()
         result = monitor.view('regional')
@@ -74,7 +76,7 @@ def main():
             self.wfile.write(body)
 
         def do_POST(self):
-            if self.path != '/api/reports':
+            if self.path not in ('/api/reports', '/api/help'):
                 self.reply({'error': 'Not found'}, 404)
                 return
             # Browsers must submit from this server, never from an unrelated site.
@@ -92,7 +94,7 @@ def main():
                     self.reply({'error': 'Content-Type must be application/json'}, 415)
                     return
                 payload = json.loads(self.rfile.read(length))
-                result = incidents.create(payload)
+                result = (help_requests if self.path == '/api/help' else incidents).create(payload)
             except (ValueError, UnicodeError) as exc:
                 self.reply({'error': str(exc)}, 400)
                 return
@@ -119,11 +121,18 @@ def main():
                 self.end_headers()
                 self.wfile.write(item[1])
                 return
-            if route in ('/report', '/reports.js'):
-                filename = 'report.html' if route == '/report' else 'reports.js'
+            if route == '/report' and parse_qs(urlsplit(self.path).query).get('kind') == ['help']:
+                self.send_response(303)
+                self.send_header('Location', '/help')
+                self.end_headers()
+                return
+            pages = {'/report': 'report.html', '/reports.js': 'reports.js',
+                     '/help': 'help.html', '/help.js': 'help.js'}
+            if route in pages:
+                filename = pages[route]
                 body = (ROOT / 'web' / filename).read_bytes()
                 self.send_response(200)
-                self.send_header('Content-Type', 'text/html; charset=utf-8' if route == '/report' else 'text/javascript; charset=utf-8')
+                self.send_header('Content-Type', 'text/html; charset=utf-8' if filename.endswith('.html') else 'text/javascript; charset=utf-8')
                 self.send_header('Content-Length', str(len(body)))
                 self.send_header('Cache-Control', 'no-store')
                 self.end_headers()
