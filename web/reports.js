@@ -1,5 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
+if (new URLSearchParams(location.search).get('kind') === 'help') $('kind').value = 'help';
 let coordinates = null, previewURL = null;
 function clearCoordinates(){coordinates=null;$('clearLocation').hidden=true;$('geoStatus').textContent='ไม่ได้แนบพิกัด';}
 $('clearLocation').onclick=clearCoordinates;

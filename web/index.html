@@ -7,7 +7,7 @@
 .weather-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:18px 0}.weather-card{padding:18px;background:#122d42;border:1px solid #3c5c73;border-radius:12px}.weather-card p{margin:10px 0;font-size:14px}.weather-place{border:0;padding:0;background:none;color:#60e4e4;text-align:left;font-weight:bold;min-height:30px}.weather-rain{font-size:27px;font-weight:bold;margin-top:16px}.weather-card .weather-wind{color:#e4eff7}.weather-label{background:#fff;color:#172e3e;border:1px solid #b3c7d3;box-shadow:0 2px 8px #0002;text-align:center;font-size:13px;padding:6px 10px}.weather-summary{padding:12px 16px;border-left:3px solid #60e4e4;background:#122d42;color:#e4eff7}details summary{cursor:pointer;padding:12px 0;color:#a0b7ca}@media(max-width:480px){#windMap{height:380px}.weather-cards{grid-template-columns:1fr}}
 .dashboard-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin: 16px 0 22px;
 }
@@ -36,8 +36,12 @@
 </style></head><body><main>
 <header><div><span class="eyebrow">WATER · RAIN · REGIONAL CONTEXT</span><h1>FloodLens <span class="muted">Monitor</span></h1><p>ลาดกระบังและสถานีรอบกรุงเทพฯ · เก็บข้อมูลต่อเนื่องขณะเซิร์ฟเวอร์ทำงาน</p></div><span class="badge" id="collector">กำลังตรวจระบบ</span></header>
 <nav class="dashboard-actions" aria-label="เมนู FloodLens">
-  <a class="dashboard-action primary-action" href="/report">
-    <span><strong>แจ้งสถานการณ์ / ขอความช่วยเหลือ</strong><small>แนบรูปและระบุจุดเกิดเหตุ</small></span>
+  <a class="dashboard-action primary-action" href="/report?kind=help">
+    <span><strong>ขอความช่วยเหลือ</strong><small>แจ้งจุดที่ต้องการความช่วยเหลือ</small></span>
+    <span aria-hidden="true">→</span>
+  </a>
+  <a class="dashboard-action" href="/report">
+    <span><strong>รายงานจุดน้ำท่วม</strong><small>แนบรูปและระบุจุดเกิดเหตุ</small></span>
     <span aria-hidden="true">→</span>
   </a>
   <a id="analyzeCsv" class="dashboard-action" href="/csv">
