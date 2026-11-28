@@ -6,10 +6,28 @@ const fmt = t => t ? new Date(t).toLocaleString('th-TH',{timeZone:'Asia/Bangkok'
 const num = (v, digits=2) => typeof v === 'number' && Number.isFinite(v) ? v.toFixed(digits) : '—';
 const text = (tag, value, parent, cls) => {const n=document.createElement(tag);n.textContent=value;if(cls)n.className=cls;if(parent)parent.append(n);return n;};
 let snapshot=null, feed='water', selected=null, history=[], busy=false, historyRequest=0;
+const stationFeeds = ['water','rain','flow'];
+const stationFailure = 'Unable to update station data';
+const filteredEmpty = 'No stations found matching the filters';
+let stationRequestFailed = false;
+function stationFailed(key) {
+  return stationRequestFailed || Boolean(snapshot?.system?.last_error) || snapshot?.feeds[key]?.status === 'error';
+}
+function lastRetrieval(key) {
+  return 'Last successful retrieval: ' + (snapshot?.feeds[key]?.fetched_at ? fmt(snapshot.feeds[key].fetched_at) : 'unavailable');
+}
+function stationStatus(key) {
+  const source = snapshot?.feeds[key];
+  if(stationFailed(key)) return stationFailure + ' · ' + lastRetrieval(key);
+  if(source?.status === 'ok' && !rowsFor(key).length) return filteredEmpty;
+  return status(source);
+}
 function rowsFor(key) {
   const q=el('search').value.trim().toLocaleLowerCase(), radius=el('scope').value==='local'?10:150;
-  return (snapshot?.feeds[key]?.rows??[]).filter(r=>r.distance_km<=radius&&(!el('fresh').checked||!r.stale)&&
-    [r.name,r.station_code,r.river,r.basin,r.province,r.district].join(' ').toLocaleLowerCase().includes(q));
+  const failed=stationFailed(key);
+  return (snapshot?.feeds[key]?.rows??[]).filter(r=>r.distance_km<=radius&&(!el('fresh').checked||(!r.stale&&!failed))&&
+    [r.name,r.station_code,r.river,r.basin,r.province,r.district].join(' ').toLocaleLowerCase().includes(q))
+    .map(r=>failed?{...r,stale:true,trend:null}:r);
 }
 function status(f) {
   if(!f)return 'ยังไม่มี feed นี้ — รีสตาร์ทเซิร์ฟเวอร์หลังอัปเดตโค้ด';
@@ -66,7 +84,8 @@ function plotMap(target,points){
     marker.on('click',()=>choose(p));
     stationMarkers.set(p.station_id,marker);
   }
-  note.textContent=usable.length?'ลากเพื่อเลื่อน · กด + / − เพื่อซูม · กดจุดเพื่อดูค่าและประวัติ':'ไม่พบสถานีตามตัวกรอง ลองเปลี่ยนพื้นที่หรือคำค้น';
+  note.textContent=usable.length?'ลากเพื่อเลื่อน · กด + / − เพื่อซูม · กดจุดเพื่อดูค่าและประวัติ'
+    :points.length?'สถานีที่แสดงไม่มีพิกัดสำหรับแผนที่':stationStatus(key);
   const filter=JSON.stringify([el('scope').value,el('search').value,el('fresh').checked]);
   if(mapFilter!==filter){
     stationMap.fitBounds([[13.73,100.78],...usable.map(p=>[p.latitude,p.longitude])],{padding:[30,30],maxZoom:13});
@@ -96,18 +115,19 @@ function render(){
   el('collector').textContent=!system?'ต้องรีสตาร์ทเซิร์ฟเวอร์':system.collecting?'กำลังเก็บข้อมูล':system.collector_running?'ตัวเก็บข้อมูลทำงาน':'ตัวเก็บข้อมูลหยุด';
   el('archiveCount').textContent=system?.observation_count?.toLocaleString()??'—';
   el('archiveMeta').textContent=system?.first_observation_epoch?'เริ่มข้อมูล '+fmt(system.first_observation_epoch*1000):'ยังไม่มีข้อมูลตรวจวัดที่เก็บสำเร็จ';
-  for(const key of ['water','flow']){const rows=rowsFor(key);el(key+'Count').textContent=rows.length;el(key+'Meta').textContent=`ข้อมูลเก่า ${rows.filter(r=>r.stale).length} สถานี · ตามตัวกรองปัจจุบัน`;}
+  for(const key of ['water','flow']){const rows=rowsFor(key);el(key+'Count').textContent=stationFailed(key)&&!rows.length?'—':rows.length;el(key+'Meta').textContent=`ข้อมูลเก่า ${rows.filter(r=>r.stale).length} สถานี · ตามตัวกรองปัจจุบัน`;}
   const forecast=snapshot.feeds.forecast, upcoming=(forecast?.rows??[]).filter(r=>Date.parse(r.timestamp)>Date.now()&&Date.parse(r.timestamp)<=Date.now()+86400000);
   const complete=upcoming.length===24&&upcoming.every(r=>r.precipitation_mm!==null);
   el('forecastTotal').textContent=complete?num(upcoming.reduce((s,r)=>s+r.precipitation_mm,0),1)+' มม.':'—';
   el('forecastMeta').textContent=forecast?.cache_stale?'สำเนาพยากรณ์เก่า — ตรวจเวลาต้นทาง':complete?'24 ช่วงชั่วโมง · แบบจำลอง':'ข้อมูลยังไม่ครบ 24 ชั่วโมง';
-  renderStations();renderWeather();
+  renderStations();
+  if(!stationRequestFailed)renderWeather();
   el('systemStatus').textContent=system?`รอบล่าสุด ${fmt(system.last_attempt)} · ตั้งรอบ ${system.poll_seconds} วินาที · ${system.last_error??'ไม่มีข้อผิดพลาดภายในตัวเก็บข้อมูล'}`:'ยังไม่ได้เปิดเซิร์ฟเวอร์รุ่นเก็บประวัติ';
   el('feedHealth').replaceChildren();for(const [key,f] of Object.entries(snapshot.feeds))text('p',names[key]+': '+status(f),el('feedHealth'),f.status==='error'||f.cache_stale?'error':'muted');
 }
 function renderStations(){
-  const f=snapshot?.feeds[feed],rows=rowsFor(feed);el('feedStatus').textContent=status(f);el('feedStatus').className=f?.status==='error'||f?.cache_stale?'error':'muted';
-  el('tableTitle').textContent='สถานี'+names[feed]+' · '+rows.length+' จุด';el('unitHead').textContent=units[feed];
+  const f=snapshot?.feeds[feed],rows=rowsFor(feed);el('feedStatus').textContent=stationStatus(feed);el('feedStatus').className=stationFailed(feed)||f?.cache_stale?'error':'muted';
+  el('tableTitle').textContent='สถานี'+names[feed]+(stationFailed(feed)&&!rows.length?'':' · '+rows.length+' จุด');el('unitHead').textContent=units[feed];
   el('tableNote').textContent=feed==='flow'?'ค่าบวก/ลบเป็นสัญญาณตามจุดอ้างอิงสถานี ยังไม่แปลเป็นทิศเหนือ/ใต้ และห้ามรวมเป็นน้ำเข้าพื้นที่':feed==='rain'?'ค่าฝนสะสม 24 ชั่วโมงล่าสุด ห้ามรวมข้ามสถานีหรือรวมช่วงสะสมที่ซ้อนกัน':'แนวโน้มคำนวณจากสองค่าล่าสุดที่ห่างกันไม่เกิน 3 ชม. ไม่ใช่การทำนายระดับน้ำ';
   el('stations').replaceChildren();
   rows.forEach(r=>{const rate=r.trend?num(r.trend.per_hour)+(feed==='water'?' ม./ชม.':' (ลบ.ม./วินาที)/ชม.'):'ยังไม่มีคู่ข้อมูล';
@@ -210,9 +230,16 @@ function renderWeather(){
 }
 async function refresh(){
   if(busy)return;busy=true;el('refresh').disabled=true;el('updated').textContent='กำลังอ่านข้อมูลที่เก็บล่าสุด…';
-  try{const res=await fetch('/api/live?scope=regional');if(!res.ok)throw Error('HTTP '+res.status);snapshot=await res.json();render();el('updated').textContent='อ่านเมื่อ '+fmt(new Date());
+  try{const res=await fetch('/api/live?scope=regional');if(!res.ok)throw Error('HTTP '+res.status);
+    const data=await res.json();
+    if(!data?.feeds)throw Error('Missing live data');
+    snapshot=data;stationRequestFailed=false;render();
+    const failed=stationFeeds.filter(stationFailed);
+    el('updated').textContent=failed.length ? stationFailure + ' · ' + failed.map(key=>names[key]+' — '+lastRetrieval(key)).join(' · ') : 'อ่านเมื่อ '+fmt(new Date());
     if(selected)await loadHistory();
-  }catch(e){snapshot=null;for(const id of ['waterCount','flowCount','forecastTotal','archiveCount'])el(id).textContent='—';el('updated').textContent='โหลดไม่ได้: '+e.message;el('stations').replaceChildren();clearStationMap();el('weatherRows').replaceChildren();clearWeather();el('weatherHour').replaceChildren();el('forecastChart').replaceChildren();el('feedStatus').textContent='ข้อมูลไม่พร้อมใช้งาน';el('collector').textContent='ติดต่อเซิร์ฟเวอร์ไม่ได้';}
+  }catch(e){stationRequestFailed=true;if(snapshot)render();else renderStations();
+    el('updated').textContent=stationFailure + ' · ' + stationFeeds.map(key=>names[key]+' — '+lastRetrieval(key)).join(' · ');
+    el('forecastTotal').textContent='—';el('weatherRows').replaceChildren();clearWeather();el('weatherHour').replaceChildren();el('forecastChart').replaceChildren();el('collector').textContent='ติดต่อเซิร์ฟเวอร์ไม่ได้';}
   finally{busy=false;el('refresh').disabled=false;}}
 el('feedTabs').querySelectorAll('button').forEach(button=>button.onclick=()=>{feed=button.dataset.feed;el('feedTabs').querySelectorAll('button').forEach(b=>b.classList.toggle('active',b===button));if(snapshot)renderStations();});
 ['scope','fresh'].forEach(id=>el(id).onchange=render);el('search').oninput=render;el('hours').onchange=loadHistory;el('weatherHour').onchange=renderWeather;el('refresh').onclick=refresh;
@@ -228,7 +255,7 @@ el('analyzeCsv').onclick = event => {
       scope: el('scope').value,
       search: el('search').value.trim(),
       fresh: el('fresh').checked,
-      status: status(snapshot?.feeds[feed]),
+      status: stationStatus(feed),
       capturedAt: new Date().toISOString(),
       rows: rowsFor(feed),
     }));

@@ -23,6 +23,14 @@ class Monitor:
         self.collecting = True
         try:
             snapshot = self.live.get('regional')
+            previous = self.snapshot['feeds'] if self.snapshot else {}
+            for key in ('water', 'rain', 'flow'):
+                feed = snapshot['feeds'].get(key)
+                prior = previous.get(key, {})
+                if feed and feed['status'] == 'error':
+                    fetched_at = prior.get('fetched_at')
+                    rows = prior['rows'] if fetched_at else self.store.last_station_rows(key)
+                    snapshot['feeds'][key] = dict(feed, rows=rows, fetched_at=fetched_at)
             snapshot['collected_at'] = datetime.now(BANGKOK).isoformat()
             self.store.save(snapshot)
             with self.lock:
@@ -65,7 +73,8 @@ class Monitor:
         trends = self.store.trends()
         for key, feed in snapshot['feeds'].items():
             stamp = feed.get('fetched_at')
-            feed['cache_stale'] = not stamp or (now-datetime.fromisoformat(stamp)).total_seconds() > 900
+            feed['cache_stale'] = (feed['status'] == 'error' or not stamp or
+                                   (now-datetime.fromisoformat(stamp)).total_seconds() > 900)
             if key == 'forecast':
                 feed['rows'] = [r for r in feed['rows'] if datetime.fromisoformat(r['timestamp']) >= now]
                 for point in feed.get('locations', []):

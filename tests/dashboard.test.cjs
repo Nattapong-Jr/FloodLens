@@ -44,8 +44,25 @@ function fixture(){const stamp=new Date(Date.now()+3600000).toISOString();const 
 }
 test('local/regional filters and signed flow display',async()=>{const m=mount(fixture());await tick();assert.equal(m.nodes.waterCount.textContent,1);m.nodes.scope.value='regional';m.nodes.scope.onchange();assert.equal(m.nodes.waterCount.textContent,2);m.nodes.feedTabs.children[1].click();assert.equal(m.nodes.stations.firstChild.children[3].textContent,'-3.09');});
 test('station selection requests observation history',async()=>{const m=mount(fixture());await tick();m.nodes.stations.firstChild.firstChild.firstChild.click();await tick();assert.equal(m.historyCalls(),1);assert.equal(m.nodes.export.disabled,false);assert.match(m.nodes.detailTitle.textContent,/Canal/);});
-test('failed refresh clears previously displayed current values',async()=>{const m=mount(fixture());await tick();m.setFail();await m.nodes.refresh.onclick();assert.equal(m.nodes.waterCount.textContent,'—');assert.equal(m.nodes.stations.children.length,0);assert.match(m.nodes.updated.textContent,/offline/);});
-test('search empty result has no map markers',async()=>{const m=mount(fixture());await tick();m.nodes.search.value='unknown-canal';m.nodes.search.oninput();assert.equal(m.nodes.stations.children.length,0);assert.equal(m.nodes.waterCount.textContent,0);});
+test('failed refresh retains the measurement and identifies the last successful retrieval',async()=>{
+  const m=mount(fixture());await tick();
+  const measured=m.nodes.stations.firstChild.children[5].textContent;
+  const retrieved=m.nodes.feedStatus.textContent.replace('ดึงเมื่อ ','');
+  m.setFail();await m.nodes.refresh.onclick();
+  assert.equal(m.nodes.stations.firstChild.children[5].textContent,measured);
+  assert.match(m.nodes.stations.firstChild.children[6].textContent,/ข้อมูลเก่า/);
+  assert.equal(m.nodes.feedStatus.textContent,'Unable to update station data · Last successful retrieval: '+retrieved);
+  m.nodes.search.value='absent';m.nodes.search.oninput();
+  assert.match(m.nodes.feedStatus.textContent,/Unable to update station data/);
+});
+test('source failure without cached rows does not look like an empty filter',async()=>{
+  const data=fixture();data.feeds.water={status:'error',rows:[],fetched_at:null};
+  const m=mount(data,true);await tick();
+  assert.match(m.nodes.updated.textContent,/Unable to update station data/);
+  assert.match(m.nodes.mapStatus.textContent,/Last successful retrieval: unavailable/);
+  assert.equal(m.nodes.stations.children.length,0);
+});
+test('search with successful station data reports an empty filter',async()=>{const m=mount(fixture());await tick();m.nodes.search.value='unknown-canal';m.nodes.search.oninput();assert.equal(m.nodes.stations.children.length,0);assert.equal(m.nodes.waterCount.textContent,0);assert.equal(m.nodes.feedStatus.textContent,'No stations found matching the filters');});
 
 
 test('street map markers follow filters and preserve zoom during polling',async()=>{
@@ -56,11 +73,12 @@ test('street map markers follow filters and preserve zoom during polling',async(
   m.nodes.scope.value='regional';m.nodes.scope.onchange();assert.equal(m.leaflet.layers[0].items.length,2);
   m.nodes.search.value='absent';m.nodes.search.oninput();assert.equal(m.leaflet.layers[0].items.length,0);
 });
-test('map marker opens history and failed network clears markers',async()=>{
+test('map marker opens history and failed network retains stale markers',async()=>{
   const m=mount(fixture(),true);await tick();
   m.leaflet.layers[0].items[0].events.click();await tick();
   assert.equal(m.historyCalls(),1);assert.equal(m.nodes.export.disabled,false);
-  m.setFail();await m.nodes.refresh.onclick();assert.equal(m.leaflet.layers[0].items.length,0);
+  m.setFail();await m.nodes.refresh.onclick();assert.equal(m.leaflet.layers[0].items.length,1);
+  assert.equal(m.leaflet.layers[0].items[0].options.fillColor,'#748594');
 });
 test('map errors leave the station table usable',async()=>{
   const m=mount(fixture(),true);await tick();m.leaflet.tiles[0].tileerror();

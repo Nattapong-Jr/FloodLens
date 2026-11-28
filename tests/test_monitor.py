@@ -55,10 +55,27 @@ class MonitorTests(unittest.TestCase):
         monitor = Monitor(live, self.store)
         monitor.collect()
         live.get.return_value = self.snapshot(status='error')
+        live.get.return_value['feeds']['water']['fetched_at'] = None
         monitor.collect()
         self.assertTrue(self.store.history('water', '3'))
-        self.assertEqual(monitor.view()['feeds']['water']['status'], 'error')
-        self.assertEqual(monitor.view()['feeds']['water']['rows'], [])
+        restarted = Monitor(live, Store(self.path))
+        feed = restarted.view()['feeds']['water']
+        self.assertEqual(feed['status'], 'error')
+        self.assertEqual(feed['fetched_at'], self.now.isoformat())
+        self.assertEqual(feed['rows'][0]['timestamp'], self.now.isoformat())
+        self.assertTrue(feed['rows'][0]['stale'])
+
+    def test_old_archive_recovers_measurement_without_inventing_retrieval_time(self):
+        self.store.save(self.snapshot())
+        failed = self.snapshot(status='error')
+        failed['feeds']['water']['fetched_at'] = None
+        self.store.save(failed)
+        monitor = Monitor(Mock(), self.store)
+        monitor.live.get.return_value = failed
+        monitor.collect()
+        feed = monitor.view()['feeds']['water']
+        self.assertIsNone(feed['fetched_at'])
+        self.assertEqual(feed['rows'][0]['timestamp'], self.now.isoformat())
 
     def test_view_refreshes_staleness_and_respects_scope(self):
         data = self.snapshot(minutes=300)

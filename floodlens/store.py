@@ -72,6 +72,15 @@ class Store:
                 (feed, station_id, now - hours * 3600, now + 900)).fetchall()
         return [json.loads(row[0]) for row in reversed(records)]
 
+    def last_station_rows(self, feed):
+        """Recover measurements from archives created before fetch times were retained."""
+        with self.connect() as db:
+            records = db.execute('''SELECT payload FROM (
+                SELECT payload, ROW_NUMBER() OVER(PARTITION BY station_id ORDER BY epoch DESC) AS n
+                FROM observations WHERE feed=?
+            ) WHERE n=1''', (feed,)).fetchall()
+        return [json.loads(row[0]) for row in records]
+
     def trends(self, now=None):
         """Delta between latest pair only, provided the pair is fresh and close."""
         now = datetime.now(timezone.utc).timestamp() if now is None else now
