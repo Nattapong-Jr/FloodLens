@@ -40,7 +40,10 @@ class Incidents:
             db.execute('''CREATE TABLE IF NOT EXISTS incident_details (
                 id TEXT PRIMARY KEY, reporter TEXT NOT NULL DEFAULT '', confirmed_at TEXT)''')
 
-    def create(self, data):
+    def create(self, data, db=None):
+        if db is None:
+            with self.store.connect() as connection:
+                return self.create(data, connection)
         if not isinstance(data, dict):
             raise ValueError('ข้อมูลต้องเป็น JSON object')
         kind, severity = field(data, 'kind', 20), field(data, 'severity', 20)
@@ -66,10 +69,9 @@ class Incidents:
             raise ValueError('รองรับเฉพาะรูป JPEG หรือ PNG')
         ident = uuid.uuid4().hex
         stamp = datetime.now(timezone.utc).isoformat()
-        with self.store.connect() as db:
-            db.execute('INSERT INTO incidents VALUES (?,?,?,?,?,?,?,?,?,?)',
-                       (ident, stamp, kind, severity, location, description, lat, lon, mime, photo))
-            db.execute('INSERT INTO incident_details (id, reporter) VALUES (?,?)', (ident, reporter))
+        db.execute('INSERT INTO incidents VALUES (?,?,?,?,?,?,?,?,?,?)',
+                   (ident, stamp, kind, severity, location, description, lat, lon, mime, photo))
+        db.execute('INSERT INTO incident_details (id, reporter) VALUES (?,?)', (ident, reporter))
         return {'id': ident, 'created_at': stamp, 'status': 'recorded'}
 
     def latest(self):

@@ -24,7 +24,10 @@ class HelpRequests:
                 id TEXT PRIMARY KEY, accepted_at TEXT NOT NULL, assignee TEXT NOT NULL,
                 outcome TEXT NOT NULL DEFAULT '', closed_at TEXT)''')
 
-    def create(self, data):
+    def create(self, data, db=None):
+        if db is None:
+            with self.store.connect() as connection:
+                return self.create(data, connection)
         if not isinstance(data, dict):
             raise ValueError('ข้อมูลต้องเป็น JSON object')
         need = field(data, 'need', 20)
@@ -36,9 +39,8 @@ class HelpRequests:
         contact = field(data, 'contact', 200, required=False)
         lat, lon = coordinates(data)
         ident, created = uuid.uuid4().hex, timestamp()
-        with self.store.connect() as db:
-            db.execute('INSERT INTO help_requests VALUES (?,?,?,?,?,?,?,?,?)',
-                       (ident, created, need, people, landmark, details, contact, lat, lon))
+        db.execute('INSERT INTO help_requests VALUES (?,?,?,?,?,?,?,?,?)',
+                   (ident, created, need, people, landmark, details, contact, lat, lon))
         return {'id': ident, 'created_at': created, 'status': 'received'}
 
     def track(self, ident):

@@ -1,11 +1,13 @@
 import base64
+from concurrent.futures import ThreadPoolExecutor
 import tempfile
 import unittest
 from pathlib import Path
+import uuid
 
 from floodlens.incidents import Incidents, MAX_IMAGE
 from floodlens.help_requests import HelpRequests
-from floodlens.store import Store
+from floodlens.store import Store, SubmissionConflict
 
 
 class IncidentTests(unittest.TestCase):
@@ -60,6 +62,18 @@ class IncidentTests(unittest.TestCase):
         self.assertIsNone(self.incidents.photo(old['id']))
         self.assertIsNone(self.incidents.photo(receipt['id']))
 
+    def test_concurrent_retries_return_one_private_request(self):
+        requests = HelpRequests(self.store)
+        key = str(uuid.uuid4())
+        data = dict(need='evacuation', people=2, landmark='Dorm gate')
+        with ThreadPoolExecutor(2) as pool:
+            first, second = pool.map(
+                lambda _: self.store.submit('/api/help', key, data, requests.create), range(2))
+        self.assertEqual(first, second)
+        self.assertEqual(len(requests.queue()['requests']), 1)
+        with self.assertRaises(SubmissionConflict):
+            self.store.submit('/api/help', key, dict(data, people=3), requests.create)
+
 class IncidentHandlerTests(unittest.TestCase):
     def test_http_contract_without_socket(self):
         import io
@@ -75,7 +89,7 @@ class IncidentHandlerTests(unittest.TestCase):
                     patch('app.Monitor.stop'), patch('builtins.print'):
                 app.main()
             handler_type = server.call_args.args[1]
-            def request(path, payload=None, origin=None, token=None):
+            def request(path, payload=None, origin=None, token=None, key=None):
                 handler = object.__new__(handler_type)
                 handler.path = path
                 handler.headers = Message()
@@ -87,6 +101,8 @@ class IncidentHandlerTests(unittest.TestCase):
                     handler.headers['Origin'] = origin
                 if token:
                     handler.headers['Authorization'] = 'Bearer ' + token
+                if key:
+                    handler.headers['Idempotency-Key'] = key
                 handler.rfile, handler.wfile = io.BytesIO(raw), io.BytesIO()
                 statuses, headers = [], {}
                 handler.send_response = statuses.append
@@ -130,8 +146,10 @@ class IncidentHandlerTests(unittest.TestCase):
             self.assertEqual(request('/coordinator')[0], 200)
             help_payload = dict(need='evacuation', people=2, landmark='Dorm gate',
                                 contact='private-contact', details='Two students')
-            status, _, body = request('/api/help', help_payload)
+            attempt = str(uuid.uuid4())
+            status, _, body = request('/api/help', help_payload, key=attempt)
             self.assertEqual(status, 201)
+            self.assertEqual(request('/api/help', help_payload, key=attempt)[2], body)
             tracking = json.loads(body)['id']
             queue, track = '/api/help/queue', '/api/help/status'
             self.assertEqual(request(track)[0], 404)

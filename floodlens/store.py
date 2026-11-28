@@ -1,5 +1,7 @@
 """SQLite observation archive. Forecasts are never mixed with observations."""
 import json
+import hashlib
+import re
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -21,6 +23,9 @@ class Store:
                 CREATE TABLE IF NOT EXISTS runs (
                     epoch REAL PRIMARY KEY, payload TEXT NOT NULL);
                 CREATE INDEX IF NOT EXISTS observations_epoch ON observations(epoch);
+                CREATE TABLE IF NOT EXISTS submission_receipts (
+                    route TEXT NOT NULL, client_key TEXT NOT NULL, fingerprint TEXT NOT NULL,
+                    receipt TEXT NOT NULL, PRIMARY KEY(route, client_key));
             ''')
 
     @contextmanager
@@ -31,6 +36,26 @@ class Store:
                 yield db
         finally:
             db.close()
+
+    def submit(self, route, client_key, payload, create):
+        if client_key is not None and not re.fullmatch(r'[a-f0-9-]{36}', client_key):
+            raise ValueError('รหัสการส่งคำขอไม่ถูกต้อง')
+        with self.connect() as db:
+            if client_key is None:
+                return create(payload, db)
+            fingerprint = hashlib.sha256(json.dumps(
+                payload, sort_keys=True, allow_nan=False).encode()).hexdigest()
+            db.execute('BEGIN IMMEDIATE')
+            previous = db.execute('''SELECT fingerprint, receipt FROM submission_receipts
+                WHERE route=? AND client_key=?''', (route, client_key)).fetchone()
+            if previous:
+                if fingerprint != previous[0]:
+                    raise SubmissionConflict('รหัสนี้ใช้ส่งข้อมูลอื่นแล้ว')
+                return json.loads(previous[1])
+            receipt = create(payload, db)
+            db.execute('INSERT INTO submission_receipts VALUES (?,?,?,?)',
+                       (route, client_key, fingerprint, json.dumps(receipt)))
+            return receipt
 
     def save(self, snapshot):
         encoded = json.dumps(snapshot, ensure_ascii=False, allow_nan=False)
@@ -116,3 +141,7 @@ class Store:
         return {'observation_count': count, 'first_observation_epoch': first,
                 'last_observation_epoch': last,
                 'recent_runs': [{'epoch': epoch, 'feeds': json.loads(p)} for epoch, p in runs]}
+
+
+class SubmissionConflict(ValueError):
+    pass

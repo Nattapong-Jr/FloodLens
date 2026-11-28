@@ -12,7 +12,7 @@ from floodlens.help_requests import HelpRequests
 from floodlens.data import load_csv
 from floodlens.live import LiveService
 from floodlens.monitor import Monitor
-from floodlens.store import Store
+from floodlens.store import Store, SubmissionConflict
 
 ROOT = Path(__file__).resolve().parent
 
@@ -124,7 +124,11 @@ def main():
                     else:
                         self.reply({'error': 'รายการเปลี่ยนแล้ว กรุณาโหลดคิวอีกครั้ง'}, 409)
                     return
-                result = (help_requests if self.path == '/api/help' else incidents).create(payload)
+                source = help_requests if self.path == '/api/help' else incidents
+                result = store.submit(self.path, self.headers.get('Idempotency-Key'), payload, source.create)
+            except SubmissionConflict as exc:
+                self.reply({'error': str(exc)}, 409)
+                return
             except (ValueError, UnicodeError) as exc:
                 self.reply({'error': str(exc)}, 400)
                 return
@@ -174,7 +178,7 @@ def main():
                      '/help': 'help.html', '/help.js': 'help.js', '/help-tools.css': 'help-tools.css',
                      '/track': 'track.html', '/coordinator': 'coordinator.html',
                      '/help-tools.js': 'help-tools.js', '/campus.js': 'campus.js',
-                     '/help-coverage.js': 'help-coverage.js'}
+                     '/help-coverage.js': 'help-coverage.js', '/submission.js': 'submission.js'}
             if route in pages:
                 filename = pages[route]
                 body = (ROOT / 'web' / filename).read_bytes()

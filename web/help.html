@@ -12,6 +12,7 @@
   <h1>ขอความช่วยเหลือ</h1>
   <p class="notice"><span id="availability" role="status">ยังไม่มีการยืนยันทีมและเวลาเฝ้าคิว</span> หากอยู่ในอันตราย ให้ติดต่อหน่วยช่วยเหลือโดยตรง</p>
   <form id="helpForm">
+    <fieldset id="submissionFields" style="padding:0;border:0;margin:0;min-width:0">
     <label for="need">ต้องการความช่วยเหลืออะไร</label>
     <select id="need" required>
       <option value="">เลือกความช่วยเหลือ</option><option value="evacuation">ออกจากพื้นที่</option>
@@ -26,8 +27,9 @@
     <p id="geoStatus" role="status">ยังไม่ได้แนบพิกัด</p>
     <button id="clearLocation" type="button" hidden>ลบพิกัด</button>
     <p>ข้อมูลในแบบฟอร์มนี้ใช้สำหรับทีมรับเรื่องและไม่แสดงในรายการสาธารณะ</p>
+    </fieldset>
     <button id="submit" type="submit">ส่งคำขอ</button>
   </form>
   <p id="status" role="status"></p>
   <a id="trackingLink" hidden>ติดตามคำขอนี้</a>
-</main><script src="/help-coverage.js"></script><script src="/help.js"></script></body></html>
+</main><script src="/help-coverage.js"></script><script src="/submission.js"></script><script src="/help.js"></script></body></html>

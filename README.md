@@ -163,6 +163,8 @@ assign, or close cases. Set `FLOODLENS_HELP_TEAM`, `FLOODLENS_HELP_HOURS`, and
 `FLOODLENS_HELP_CONTACT` together once the team confirms its coverage and contact
 channel. Without that configuration the form shows coverage as unconfirmed.
 Saving a request does not notify emergency responders.
+If sending stalls, retry in the same tab. The form keeps the submitted data and
+uses the same request key so a lost response does not create a second case.
 
 Restart `app.py` after updating the checkout. Check that
 `http://127.0.0.1:8000/help` returns HTTP 200 before testing the workflow.
