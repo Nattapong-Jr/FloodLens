@@ -10,6 +10,8 @@
 <label for="severity">ความเร่งด่วนตามผู้แจ้ง</label><select id="severity"><option value="low">ทั่วไป</option><option value="medium">ควรตรวจสอบ</option><option value="high">เร่งด่วน</option></select>
 <label for="photo">รูปสถานการณ์ *</label><input id="photo" type="file" accept="image/jpeg,image/png" capture="environment" required><p class="hint">ถ่ายรูปด้วยมือถือหรือเลือกรูป JPEG / PNG ไม่เกิน 3 MB</p><img id="preview" hidden alt="ตัวอย่างภาพที่กำลังจะแจ้ง">
 <label for="location">สถานที่ / จุดสังเกต *</label><input id="location" maxlength="200" required placeholder="เช่น ทางเข้า KMITL ฝั่งถนนฉลองกรุง">
+<p class="hint">ระบุชื่อคณะ หอพัก ประตู หรือถนนใกล้ สจล. เพื่อให้คนอื่นค้นหาได้</p>
+<label for="reporter">ชื่อที่แสดง (ไม่บังคับ)</label><input id="reporter" maxlength="80" placeholder="ใช้นามแฝงได้">
 <button type="button" id="locate">ใช้พิกัดปัจจุบัน (ไม่บังคับ)</button><p id="geoStatus" class="hint" role="status">ยังไม่ได้แนบพิกัด สามารถระบุสถานที่ด้วยข้อความได้</p><button type="button" id="clearLocation" hidden>ลบพิกัด</button>
 <label for="description">รายละเอียด *</label><textarea id="description" rows="5" maxlength="2000" required placeholder="ระดับน้ำ เส้นทางที่ผ่านไม่ได้ หรือความช่วยเหลือที่ต้องการ"></textarea>
 <p class="hint">รูป รายละเอียด และพิกัดที่แนบจะแสดงต่อผู้ที่เข้าถึงระบบ กรุณาหลีกเลี่ยงข้อมูลส่วนตัว ใบหน้า และเบอร์โทรศัพท์</p>

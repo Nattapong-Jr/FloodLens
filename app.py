@@ -91,7 +91,7 @@ def main():
             self.wfile.write(body)
 
         def do_POST(self):
-            if self.path not in ('/api/reports', '/api/help', '/api/help/queue'):
+            if self.path not in ('/api/reports', '/api/help', '/api/help/queue', '/api/reports/confirm'):
                 self.reply({'error': 'Not found'}, 404)
                 return
             # Browsers must submit from this server, never from an unrelated site.
@@ -100,7 +100,7 @@ def main():
                 self.reply({'error': 'Origin not allowed'}, 403)
                 return
             updating_queue = self.path == '/api/help/queue'
-            if updating_queue and not self.coordinator_allowed():
+            if (updating_queue or self.path == '/api/reports/confirm') and not self.coordinator_allowed():
                 return
             try:
                 length = int(self.headers.get('Content-Length', '0'))
@@ -112,6 +112,12 @@ def main():
                     self.reply({'error': 'Content-Type must be application/json'}, 415)
                     return
                 payload = json.loads(self.rfile.read(length))
+                if self.path == '/api/reports/confirm':
+                    if not isinstance(payload, dict) or not isinstance(payload.get('id'), str):
+                        raise ValueError('กรุณาระบุเลขอ้างอิงรายงาน')
+                    confirmed = incidents.confirm(payload['id'])
+                    self.reply({'confirmed': confirmed}, 200 if confirmed else 404)
+                    return
                 if updating_queue:
                     if help_requests.update(payload):
                         self.reply({'updated': True})
@@ -143,6 +149,9 @@ def main():
             if route == '/api/reports':
                 self.reply(incidents.latest())
                 return
+            if route == '/api/reports/campus':
+                self.reply(incidents.campus())
+                return
             if route.startswith('/api/reports/') and route.endswith('/photo'):
                 item = incidents.photo(route[len('/api/reports/'):-len('/photo')])
                 if not item:
@@ -164,7 +173,8 @@ def main():
             pages = {'/report': 'report.html', '/reports.js': 'reports.js',
                      '/help': 'help.html', '/help.js': 'help.js', '/help-tools.css': 'help-tools.css',
                      '/track': 'track.html', '/coordinator': 'coordinator.html',
-                     '/help-tools.js': 'help-tools.js'}
+                     '/help-tools.js': 'help-tools.js', '/campus.js': 'campus.js',
+                     '/help-coverage.js': 'help-coverage.js'}
             if route in pages:
                 filename = pages[route]
                 body = (ROOT / 'web' / filename).read_bytes()

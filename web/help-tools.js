@@ -95,9 +95,44 @@ async function loadQueue(token) {
     const result = await api('/api/help/queue', token);
     if (request !== queueLoad) return;
     result.requests.forEach(row => renderCase(row, token));
+    $('verification').hidden = false;
     $('queueStatus').textContent = result.requests.length ? `คิวทั้งหมด ${result.requests.length} รายการ` : 'ยังไม่มีคำขอ';
   } catch (error) {
     if (request === queueLoad) $('queueStatus').textContent = 'เปิดคิวไม่ได้ · ' + error.message;
+  }
+}
+
+async function reviewReports(token) {
+  const reports = $('reviewList');
+  reports.replaceChildren();
+  try {
+    const result = await api('/api/reports/campus', token);
+    $('reviewStatus').textContent = result.reports.length ? '' : 'ยังไม่มีรายงาน';
+    for (const row of result.reports) {
+      const card = add(reports, 'article', '');
+      add(card, 'h3', row.location);
+      add(card, 'p', row.description);
+      add(card, 'p', row.confirmed_at ? 'ยืนยันล่าสุด ' + date(row.confirmed_at) : 'ยังไม่ยืนยัน');
+      const photo = add(card, 'a', 'เปิดภาพรายงาน');
+      photo.href = '/api/reports/' + row.id + '/photo';
+      photo.target = '_blank';
+      photo.rel = 'noopener';
+      const button = add(card, 'button', 'ยืนยันสถานการณ์ ณ ตอนนี้');
+      button.type = 'button';
+      button.onclick = async () => {
+        button.disabled = true;
+        try {
+          await api('/api/reports/confirm', token, {id: row.id});
+          await reviewReports(token);
+        } catch (error) {
+          $('reviewStatus').textContent = 'ยืนยันไม่ได้ · ' + error.message;
+        } finally {
+          button.disabled = false;
+        }
+      };
+    }
+  } catch (error) {
+    $('reviewStatus').textContent = 'โหลดรายงานไม่ได้ · ' + error.message;
   }
 }
 
@@ -107,10 +142,13 @@ if ($('progress')) {
   track();
 } else {
   let coordinatorToken = '';
+  $('reviewReports').onclick = () => reviewReports(coordinatorToken);
   $('refreshQueue').onclick = () => loadQueue(coordinatorToken);
   $('queueLogin').onsubmit = event => {
     event.preventDefault();
     coordinatorToken = $('key').value.trim();
+    $('verification').hidden = true;
+    $('reviewList').replaceChildren();
     loadQueue(coordinatorToken);
     $('refreshQueue').hidden = false;
     $('key').value = '';

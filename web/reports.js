@@ -49,7 +49,7 @@ $('reportForm').onsubmit=async event=>{
   $('submit').disabled=true;$('status').textContent='กำลังบันทึก… กรุณารอสักครู่';
   try{
     const photo=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.onerror=()=>reject(Error('อ่านรูปไม่สำเร็จ'));reader.readAsDataURL(file);});
-    const response=await fetch('/api/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'situation',severity:$('severity').value,location:$('location').value,description:$('description').value,photo,...(coordinates||{})})});
+    const response=await fetch('/api/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'situation',severity:$('severity').value,location:$('location').value,reporter:$('reporter').value,description:$('description').value,photo,...(coordinates||{})})});
     const data=await response.json();if(!response.ok)throw Error(data.error||'บันทึกไม่สำเร็จ');
     $('status').textContent=`บันทึกแล้ว เลขอ้างอิง: ${data.id}\nยังไม่ได้ส่งต่อหน่วยกู้ภัย`;
     $('reportForm').reset();geoRequest++;$('locate').disabled=false;clearCoordinates();$('preview').hidden=true;

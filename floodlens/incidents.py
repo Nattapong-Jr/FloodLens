@@ -5,6 +5,8 @@ import sqlite3
 import uuid
 from datetime import datetime, timezone
 
+from floodlens.live import RADIUS_KM, distance
+
 MAX_IMAGE = 3 * 1024 * 1024
 MAX_REQUEST = 4 * 1024 * 1024 + 8192
 
@@ -35,6 +37,8 @@ class Incidents:
                 id TEXT PRIMARY KEY, created_at TEXT NOT NULL, kind TEXT NOT NULL,
                 severity TEXT NOT NULL, location TEXT NOT NULL, description TEXT NOT NULL,
                 latitude REAL, longitude REAL, mime TEXT NOT NULL, photo BLOB NOT NULL)''')
+            db.execute('''CREATE TABLE IF NOT EXISTS incident_details (
+                id TEXT PRIMARY KEY, reporter TEXT NOT NULL DEFAULT '', confirmed_at TEXT)''')
 
     def create(self, data):
         if not isinstance(data, dict):
@@ -43,6 +47,7 @@ class Incidents:
         if kind != 'situation' or severity not in ('low', 'medium', 'high'):
             raise ValueError('ประเภทหรือระดับความเร่งด่วนไม่ถูกต้อง')
         location, description = field(data, 'location', 200), field(data, 'description', 2000)
+        reporter = field(data, 'reporter', 80, required=False)
         lat, lon = coordinates(data)
         encoded = data.get('photo')
         if not isinstance(encoded, str) or len(encoded) > MAX_REQUEST:
@@ -64,6 +69,7 @@ class Incidents:
         with self.store.connect() as db:
             db.execute('INSERT INTO incidents VALUES (?,?,?,?,?,?,?,?,?,?)',
                        (ident, stamp, kind, severity, location, description, lat, lon, mime, photo))
+            db.execute('INSERT INTO incident_details (id, reporter) VALUES (?,?)', (ident, reporter))
         return {'id': ident, 'created_at': stamp, 'status': 'recorded'}
 
     def latest(self):
@@ -79,3 +85,22 @@ class Incidents:
         with self.store.connect() as db:
             return db.execute("SELECT mime, photo FROM incidents WHERE id=? AND kind='situation'",
                               (ident,)).fetchone()
+
+    def campus(self):
+        with self.store.connect() as db:
+            db.row_factory = sqlite3.Row
+            db.create_function('campus_distance', 2, distance)
+            rows = db.execute('''SELECT incidents.id, created_at, severity, location,
+                description, latitude, longitude, COALESCE(reporter, '') AS reporter, confirmed_at
+                FROM incidents LEFT JOIN incident_details USING (id) WHERE kind='situation'
+                AND (latitude IS NULL OR campus_distance(latitude, longitude) <= ?)
+                ORDER BY created_at DESC LIMIT 50''', (RADIUS_KM,)).fetchall()
+        return {'reports': [dict(row) for row in rows]}
+
+    def confirm(self, ident):
+        with self.store.connect() as db:
+            cursor = db.execute('''INSERT INTO incident_details (id, confirmed_at)
+                SELECT id, ? FROM incidents WHERE id=? AND kind='situation'
+                ON CONFLICT(id) DO UPDATE SET confirmed_at=excluded.confirmed_at''',
+                (datetime.now(timezone.utc).isoformat(), ident))
+            return cursor.rowcount == 1

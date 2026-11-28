@@ -49,6 +49,17 @@
     <span aria-hidden="true">→</span>
   </a>
 </nav>
+<p class="notice" id="availability" role="status">ยังไม่มีการยืนยันทีมและเวลาเฝ้าคิว</p>
+<section aria-labelledby="campusTitle">
+  <h2 id="campusTitle">เหตุล่าสุดรอบ สจล.</h2>
+  <div class="flex">
+    <label>ค้นหาคณะ หอพัก ประตู หรือถนน <input id="campusSearch" type="search" placeholder="เช่น หอพัก หรือ ถนนฉลองกรุง"></label>
+    <button id="campusRefresh" type="button">โหลดเหตุล่าสุด</button>
+  </div>
+  <p id="campusStatus" role="status"></p>
+  <div id="campusMap" role="region" aria-label="แผนที่จุดน้ำท่วม" style="height:290px;border-radius:10px" hidden></div>
+  <ul id="campusReports"></ul>
+</section>
 <div class="toolbar"><label>พื้นที่ <select id="scope"><option value="local">รอบ KMITL 10 กม.</option><option value="regional">บริบทรอบกรุงเทพฯ 150 กม.</option></select></label><label>ค้นหาสถานี / คลอง / จังหวัด <input id="search" type="search" placeholder="เช่น ประเวศ ลำปลาทิว เจ้าพระยา"></label><label><input id="fresh" type="checkbox" style="min-width:0"> ซ่อนข้อมูลเก่า</label><button id="refresh">ตรวจข้อมูลล่าสุด</button><small id="updated" role="status" aria-live="polite"></small></div>
 <div class="cards"><div class="card"><small>สถานีระดับน้ำในมุมมอง</small><div class="value" id="waterCount">—</div><small id="waterMeta">รอข้อมูล</small></div><div class="card"><small>สถานีอัตราการไหล</small><div class="value" id="flowCount">—</div><small id="flowMeta">รอข้อมูล</small></div><div class="card"><small>ฝนพยากรณ์ KMITL 24 ชม. ถัดไป</small><div class="value" id="forecastTotal">—</div><small id="forecastMeta">แบบจำลอง ไม่ใช่การตรวจวัด</small></div><div class="card"><small>ระเบียนตรวจวัดที่เก็บแล้ว</small><div class="value" id="archiveCount">—</div><small id="archiveMeta">เริ่มสะสมหลังเปิดระบบ</small></div></div>
 <p class="notice">พื้นที่ 150 กม. เป็นบริบททางภูมิศาสตร์ ไม่ใช่ขอบเขตลุ่มน้ำหรือต้นน้ำของลาดกระบังทั้งหมด อัตราการไหลแต่ละจุดห้ามบวกเป็นยอดน้ำเข้าลาดกระบัง; ลมใกล้พื้นดินไม่ใช่ทิศเคลื่อนตัวของพายุ</p>
@@ -65,4 +76,4 @@
 <section><h2>ติดตามพายุและกลุ่มฝนจากหน่วยงานทางการ</h2><p>ใช้ภาพเส้นทางพายุของกรมอุตุนิยมวิทยาประกอบลมและฝนพยากรณ์ด้านบน ต้องดูวันเวลาบนภาพ ไม่ใช้ลูกศรลมเป็นเส้นทางพายุ และการเปิดภาพไม่ใช่การตรวจยืนยันว่ามีพายุกำลังเข้าไทย</p><div class="links"><button id="stormToggle">เปิดภาพเส้นทางพายุจาก TMD</button><a href="https://www.tmd.go.th/StromTrack" target="_blank" rel="noopener">เปิด TMD โดยตรง</a><a href="https://www.tmd.go.th/warning-and-events/warning-storm" target="_blank" rel="noopener">ประกาศเตือนทางการ</a><a href="https://weather.bangkok.go.th/" target="_blank" rel="noopener">เรดาร์และข้อมูลฝน กทม.</a></div><div id="stormPanel" class="hidden storm-panel"><small>ภาพภายนอกอาจถูกต้นทางบล็อกการฝัง หากไม่แสดงให้เปิด TMD โดยตรง ขณะนี้ยังไม่ได้อ่านพิกัดเส้นทางพายุเข้าเครื่องคำนวณ</small><iframe id="stormFrame" title="เส้นทางพายุจากกรมอุตุนิยมวิทยา" loading="lazy" referrerpolicy="no-referrer"></iframe></div></section>
 <section><h2>สถานะตัวเก็บข้อมูล</h2><p id="systemStatus"></p><div id="feedHealth"></div><small>ดึงทุก 5 นาทีโดยไม่ต้องเปิดหน้าเว็บ แต่ต้องให้ python app.py ทำงานอยู่ ประวัติยังอยู่หลังปิดและเปิดใหม่ · ข้อมูลเก่าจะติดป้ายชัดเจน</small></section>
 <footer>ข้อมูลตรวจวัด: <a href="https://www.thaiwater.net/" target="_blank" rel="noopener">ThaiWater / สสน. และหน่วยงานเจ้าของสถานี</a> · Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a> (CC BY 4.0)<br>ใช้สำรวจและวิเคราะห์ข้อมูล ไม่ใช่ระบบประกาศเตือนภัยหรือแบบจำลองน้ำท่วม · ระดับน้ำ ม.รทก. ไม่ใช่ความลึกน้ำท่วมถนน</footer>
-</main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script><script src="/dashboard.js"></script></body></html>
+</main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script><script src="/dashboard.js"></script><script src="/campus.js"></script><script src="/help-coverage.js"></script></body></html>

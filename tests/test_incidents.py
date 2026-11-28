@@ -115,6 +115,16 @@ class IncidentHandlerTests(unittest.TestCase):
             self.assertEqual(request('/api/reports', {})[0], 400)
             self.assertEqual(request('/api/reports', payload, 'http://other.example')[0], 403)
             self.assertEqual(request('/api/reports/missing/photo')[0], 404)
+            campus = '/api/reports/campus'
+            distant = dict(payload, location='Away from campus', latitude=18.79, longitude=98.98)
+            self.assertEqual(request('/api/reports', distant)[0], 201)
+            public_row, = json.loads(request(campus)[2])['reports']
+            self.assertEqual(public_row['id'], ident)
+            self.assertIsNone(public_row['confirmed_at'])
+            confirmation = '/api/reports/confirm'
+            self.assertEqual(request(confirmation, {'id': ident})[0], 401)
+            self.assertEqual(request(confirmation, {'id': ident}, token=key)[0], 200)
+            self.assertIsNotNone(json.loads(request(campus)[2])['reports'][0]['confirmed_at'])
             self.assertEqual(request('/help')[0], 200)
             self.assertEqual(request('/track')[0], 200)
             self.assertEqual(request('/coordinator')[0], 200)

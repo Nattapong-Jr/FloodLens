@@ -133,6 +133,10 @@ The form accepts one JPEG/PNG up to 3 MB, a location description, incident detai
 and optional device coordinates. Submissions are saved in the configured SQLite
 file (`--db`) and receive a reference ID; the latest 50 are displayed as unverified.
 Photos and coordinates are visible to everyone who can access this local server.
+The homepage lists recent reports within 10 km of the campus reference point and
+includes text-only locations as reported. Search by landmark or report details.
+Reports awaiting an update are marked after six hours without a new report or
+coordinator confirmation. Display names are optional and public.
 
 This is a local prototype. Image validation checks size and file signatures, not
 full image decoding; metadata is not stripped. Do not publish this prototype as a
