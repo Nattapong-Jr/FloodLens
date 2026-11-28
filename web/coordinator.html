@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="th"><head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer"><title>FloodLens | คิวทีมรับเรื่อง</title>
+  <link rel="stylesheet" href="/help-tools.css">
+</head><body><main>
+  <a href="/">← กลับหน้าหลัก</a><h1>คิวทีมรับเรื่อง</h1>
+  <form id="queueLogin">
+    <label for="key">รหัสทีมรับเรื่อง</label><input id="key" type="password" required autocomplete="off">
+    <button type="submit">เปิดคิว</button>
+  </form>
+  <button id="refreshQueue" type="button" hidden>โหลดคิวใหม่</button>
+  <p id="queueStatus" role="status"></p><div id="queue"></div>
+</main><script src="/help-tools.js"></script></body></html>

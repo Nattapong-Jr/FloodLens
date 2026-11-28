@@ -128,15 +128,13 @@ timestamp,station_id,rain_mm,water_level_m,source,is_demo
 
 ## Community photo reports
 
-Open `/report` from the dashboard to submit a situation report or request for help.
+Open `/report` from the dashboard to submit a public situation report.
 The form accepts one JPEG/PNG up to 3 MB, a location description, incident details,
 and optional device coordinates. Submissions are saved in the configured SQLite
 file (`--db`) and receive a reference ID; the latest 50 are displayed as unverified.
 Photos and coordinates are visible to everyone who can access this local server.
 
-This is a local prototype: saving a request does not notify emergency responders.
-There is no responder integration, account verification, moderation, status workflow,
-or contact collection yet. Image validation checks size and file signatures, not
+This is a local prototype. Image validation checks size and file signatures, not
 full image decoding; metadata is not stripped. Do not publish this prototype as a
 public upload service without addressing these limitations and abuse/storage limits.
 The server continues to bind to 127.0.0.1; mobile access needs a separately configured
@@ -146,3 +144,21 @@ are sent by this feature.
 Verify with `python -m unittest discover -s tests` and
 `node --check web/reports.js`. Restart `python app.py`, visit `/report`, submit a
 photo, and verify the reference ID, latest listing, and image after a restart.
+
+### Private help requests
+
+Open `/help` from the homepage or the public report page. A request can be sent
+using a landmark and number of people, with optional contact and device coordinates.
+Save the tracking link to see when a coordinator accepts or closes the request.
+The tracking link reveals status and timestamps only. Contact details and precise
+coordinates are available through the protected coordinator queue.
+
+Set `FLOODLENS_COORDINATOR_KEY` to a random secret of at least 32 characters before
+starting the server. Open `/coordinator` and enter that secret to list, accept,
+assign, or close cases. Set `FLOODLENS_HELP_TEAM`, `FLOODLENS_HELP_HOURS`, and
+`FLOODLENS_HELP_CONTACT` together once the team confirms its coverage and contact
+channel. Without that configuration the form shows coverage as unconfirmed.
+Saving a request does not notify emergency responders.
+
+Restart `app.py` after updating the checkout. Check that
+`http://127.0.0.1:8000/help` returns HTTP 200 before testing the workflow.

@@ -68,12 +68,14 @@ class IncidentHandlerTests(unittest.TestCase):
         from unittest.mock import patch
         import app
         with tempfile.TemporaryDirectory() as temp:
-            with patch('sys.argv', ['app.py', '--db', str(Path(temp) / 'http.sqlite3')]), \
+            key = 'coordinator-test-' + 'x' * 32
+            with patch.dict('os.environ', {'FLOODLENS_COORDINATOR_KEY': key}), \
+                    patch('sys.argv', ['app.py', '--db', str(Path(temp) / 'http.sqlite3')]), \
                     patch('app.ThreadingHTTPServer') as server, patch('app.Monitor.start'), \
                     patch('app.Monitor.stop'), patch('builtins.print'):
                 app.main()
             handler_type = server.call_args.args[1]
-            def request(path, payload=None, origin=None):
+            def request(path, payload=None, origin=None, token=None):
                 handler = object.__new__(handler_type)
                 handler.path = path
                 handler.headers = Message()
@@ -83,6 +85,8 @@ class IncidentHandlerTests(unittest.TestCase):
                 handler.headers['Host'] = '127.0.0.1:8000'
                 if origin:
                     handler.headers['Origin'] = origin
+                if token:
+                    handler.headers['Authorization'] = 'Bearer ' + token
                 handler.rfile, handler.wfile = io.BytesIO(raw), io.BytesIO()
                 statuses, headers = [], {}
                 handler.send_response = statuses.append
@@ -111,3 +115,30 @@ class IncidentHandlerTests(unittest.TestCase):
             self.assertEqual(request('/api/reports', {})[0], 400)
             self.assertEqual(request('/api/reports', payload, 'http://other.example')[0], 403)
             self.assertEqual(request('/api/reports/missing/photo')[0], 404)
+            self.assertEqual(request('/help')[0], 200)
+            self.assertEqual(request('/track')[0], 200)
+            self.assertEqual(request('/coordinator')[0], 200)
+            help_payload = dict(need='evacuation', people=2, landmark='Dorm gate',
+                                contact='private-contact', details='Two students')
+            status, _, body = request('/api/help', help_payload)
+            self.assertEqual(status, 201)
+            tracking = json.loads(body)['id']
+            queue, track = '/api/help/queue', '/api/help/status'
+            self.assertEqual(request(track)[0], 404)
+            self.assertEqual(request(queue, token=tracking)[0], 401)
+            self.assertEqual(request(queue, dict(id=tracking, action='accept'))[0], 401)
+            self.assertEqual(json.loads(request(track, token=tracking)[2])['status'], 'received')
+            self.assertEqual(json.loads(request(queue, token=key)[2])['requests'][0]['contact'],
+                             'private-contact')
+            action = dict(id=tracking, action='accept', assignee='Volunteer')
+            self.assertEqual(request(queue, action, token=key)[0], 200)
+            self.assertEqual(request(queue, action, token=key)[0], 409)
+            after = json.loads(request(track, token=tracking)[2])
+            self.assertEqual(set(after), {'status', 'created_at', 'accepted_at', 'closed_at'})
+            self.assertEqual(after['status'], 'accepted')
+            self.assertIsNotNone(after['accepted_at'])
+            self.assertEqual(request(queue, dict(action, action='assign', assignee='Team B'), token=key)[0], 200)
+            self.assertEqual(request(queue, dict(id=tracking, action='close', outcome='Resolved'), token=key)[0], 200)
+            self.assertEqual(json.loads(request(track, token=tracking)[2])['status'], 'closed')
+            self.assertEqual(request(queue, dict(action, action='assign'), token=key)[0], 409)
+            self.assertNotIn(b'private-contact', request('/api/reports')[2])

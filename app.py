@@ -1,6 +1,8 @@
 """Local-only, dependency-free dashboard. Run: python app.py"""
 import argparse
+import hmac
 import json
+import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -57,6 +59,9 @@ def main():
     monitor = Monitor(live, store)
     incidents = Incidents(store)
     help_requests = HelpRequests(store)
+    coordinator_key = os.environ.get('FLOODLENS_COORDINATOR_KEY', '').encode()
+    coverage = {name: os.environ.get('FLOODLENS_HELP_' + name.upper(), '').strip()
+                for name in ('team', 'hours', 'contact')}
     if args.collect_once:
         monitor.collect()
         result = monitor.view('regional')
@@ -65,6 +70,16 @@ def main():
     rows, issues = load_csv(args.data)
 
     class Handler(BaseHTTPRequestHandler):
+        def bearer(self):
+            value = self.headers.get('Authorization', '')
+            return value[7:] if value.startswith('Bearer ') else ''
+
+        def coordinator_allowed(self):
+            if len(coordinator_key) >= 32 and hmac.compare_digest(self.bearer().encode(), coordinator_key):
+                return True
+            self.reply({'error': 'ต้องใช้รหัสทีมรับเรื่อง'}, 401)
+            return False
+
         def reply(self, payload, status=200):
             body = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode()
             self.send_response(status)
@@ -76,13 +91,16 @@ def main():
             self.wfile.write(body)
 
         def do_POST(self):
-            if self.path not in ('/api/reports', '/api/help'):
+            if self.path not in ('/api/reports', '/api/help', '/api/help/queue'):
                 self.reply({'error': 'Not found'}, 404)
                 return
             # Browsers must submit from this server, never from an unrelated site.
             origin = self.headers.get('Origin')
             if origin and origin != 'http://' + self.headers.get('Host', ''):
                 self.reply({'error': 'Origin not allowed'}, 403)
+                return
+            updating_queue = self.path == '/api/help/queue'
+            if updating_queue and not self.coordinator_allowed():
                 return
             try:
                 length = int(self.headers.get('Content-Length', '0'))
@@ -94,6 +112,12 @@ def main():
                     self.reply({'error': 'Content-Type must be application/json'}, 415)
                     return
                 payload = json.loads(self.rfile.read(length))
+                if updating_queue:
+                    if help_requests.update(payload):
+                        self.reply({'updated': True})
+                    else:
+                        self.reply({'error': 'รายการเปลี่ยนแล้ว กรุณาโหลดคิวอีกครั้ง'}, 409)
+                    return
                 result = (help_requests if self.path == '/api/help' else incidents).create(payload)
             except (ValueError, UnicodeError) as exc:
                 self.reply({'error': str(exc)}, 400)
@@ -105,6 +129,17 @@ def main():
 
         def do_GET(self):
             route = urlsplit(self.path).path
+            if route == '/api/help/coverage':
+                self.reply({'coverage': coverage if all(coverage.values()) else None})
+                return
+            if route == '/api/help/status':
+                result = help_requests.track(self.bearer())
+                self.reply(result or {'error': 'ไม่พบคำขอ'}, 200 if result else 404)
+                return
+            if route == '/api/help/queue':
+                if self.coordinator_allowed():
+                    self.reply(help_requests.queue())
+                return
             if route == '/api/reports':
                 self.reply(incidents.latest())
                 return
@@ -127,12 +162,15 @@ def main():
                 self.end_headers()
                 return
             pages = {'/report': 'report.html', '/reports.js': 'reports.js',
-                     '/help': 'help.html', '/help.js': 'help.js'}
+                     '/help': 'help.html', '/help.js': 'help.js', '/help-tools.css': 'help-tools.css',
+                     '/track': 'track.html', '/coordinator': 'coordinator.html',
+                     '/help-tools.js': 'help-tools.js'}
             if route in pages:
                 filename = pages[route]
                 body = (ROOT / 'web' / filename).read_bytes()
                 self.send_response(200)
-                self.send_header('Content-Type', 'text/html; charset=utf-8' if filename.endswith('.html') else 'text/javascript; charset=utf-8')
+                mime = {'.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript'}
+                self.send_header('Content-Type', mime[Path(filename).suffix] + '; charset=utf-8')
                 self.send_header('Content-Length', str(len(body)))
                 self.send_header('Cache-Control', 'no-store')
                 self.end_headers()

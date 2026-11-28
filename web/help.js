@@ -2,6 +2,20 @@
 const $ = id => document.getElementById(id);
 let coordinates = null;
 
+async function loadCoverage() {
+  try {
+    const response = await fetch('/api/help/coverage');
+    if (!response.ok) return;
+    const {coverage} = await response.json();
+    if (coverage) {
+      $('availability').textContent = `ทีมรับเรื่อง: ${coverage.team} · เวลาเฝ้าคิว: ${coverage.hours} · ติดต่อ: ${coverage.contact} ช่วงนอกเวลาที่ระบุไม่มีการเฝ้าคิว ระบบไม่ยืนยันว่ามีเจ้าหน้าที่ออนไลน์`;
+    }
+  } catch {
+    // Keep the default unconfirmed coverage notice.
+  }
+}
+loadCoverage();
+
 $('clearLocation').onclick = () => {
   coordinates = null;
   $('clearLocation').hidden = true;
@@ -40,6 +54,8 @@ $('helpForm').onsubmit = async event => {
     const data = await response.json();
     if (!response.ok) throw Error(data.error);
     $('status').textContent = `ระบบได้รับคำขอแล้ว (${data.id}) · ยังไม่มีผู้รับเรื่อง`;
+    $('trackingLink').href = '/track#' + data.id;
+    $('trackingLink').hidden = false;
     $('helpForm').reset();
     $('clearLocation').click();
   } catch (error) {
